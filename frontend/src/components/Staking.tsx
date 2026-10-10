@@ -311,7 +311,7 @@ export function Staking() {
               Stake
             </button>
             <button role="tab" aria-selected={tab === 'manage'} className={`tab${tab === 'manage' ? ' active' : ''}`} onClick={() => setTab('manage')}>
-              Unstake · Claim · Compound
+              Unstake
             </button>
           </div>
         )}
@@ -349,8 +349,7 @@ export function Staking() {
         {beforeStart && emissionStart !== null && (
           <div className="alert alert-primary mb-0" role="status">
             Staking is open. Rewards start{' '}
-            <strong>{new Date(Number(emissionStart) * 1000).toLocaleString()}</strong>. Everyone staked by then
-            starts earning at the same moment.
+            <strong>{new Date(Number(emissionStart) * 1000).toLocaleString()}</strong>.
           </div>
         )}
 
