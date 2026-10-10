@@ -26,7 +26,7 @@ interface ChartPoint {
 interface LiveData {
   emitted: number;
   totalSupply: number;
-  // Current position in epochs (0 until emission starts 24h after deploy).
+  // Current position in epochs (0 until emission starts).
   now: number | null;
   halvingDays: number;
 }

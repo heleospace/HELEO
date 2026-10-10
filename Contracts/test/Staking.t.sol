@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {LEO} from "../LEO.sol";
 import {Staking} from "../Staking.sol";
 
+uint256 constant DELAY = 24 hours;
+
 contract StakingTest is Test {
     LEO leo;
     Staking staking;
@@ -25,7 +27,7 @@ contract StakingTest is Test {
         alice = contributors[0];
         bob = contributors[1];
         leo = new LEO(contributors);
-        staking = new Staking(address(leo), HALVING_PERIOD, _recipients());
+        staking = new Staking(address(leo), HALVING_PERIOD, _recipients(), DELAY);
         leo.setStaking(address(staking));
     }
 
@@ -50,7 +52,7 @@ contract StakingTest is Test {
 
     function test_constructor_revertsOnZeroToken() public {
         vm.expectRevert(Staking.InvalidAddress.selector);
-        new Staking(address(0), HALVING_PERIOD, _recipients());
+        new Staking(address(0), HALVING_PERIOD, _recipients(), DELAY);
     }
 
     function test_constructor_revertsOnZeroRecipient() public {
@@ -58,13 +60,13 @@ contract StakingTest is Test {
             address[4] memory r = _recipients();
             r[i] = address(0);
             vm.expectRevert(Staking.InvalidAddress.selector);
-            new Staking(address(leo), HALVING_PERIOD, r);
+            new Staking(address(leo), HALVING_PERIOD, r, DELAY);
         }
     }
 
     function test_constructor_revertsOnZeroHalvingPeriod() public {
         vm.expectRevert(Staking.InvalidHalvingPeriod.selector);
-        new Staking(address(leo), 0, _recipients());
+        new Staking(address(leo), 0, _recipients(), DELAY);
     }
 
     function test_constructor_setsRecipientsAndStartTime() public view {
@@ -73,7 +75,31 @@ contract StakingTest is Test {
         assertEq(staking.bucketRecipient(2), compute);
         assertEq(staking.bucketRecipient(3), research);
         assertEq(staking.startTime(), block.timestamp + 24 hours);
+        assertEq(staking.emissionDelay(), 24 hours);
         assertEq(staking.lastUpdateTime(), staking.startTime());
+    }
+
+    function test_constructor_mainnetRequiresExactly24h() public {
+        vm.chainId(1);
+        vm.expectRevert(Staking.InvalidEmissionDelay.selector);
+        new Staking(address(leo), HALVING_PERIOD, _recipients(), 5 minutes);
+        vm.expectRevert(Staking.InvalidEmissionDelay.selector);
+        new Staking(address(leo), HALVING_PERIOD, _recipients(), 48 hours);
+
+        Staking mainnetStaking = new Staking(address(leo), HALVING_PERIOD, _recipients(), 24 hours);
+        assertEq(mainnetStaking.startTime(), block.timestamp + 24 hours);
+    }
+
+    function test_constructor_testnetAllowsShortDelay() public {
+        vm.chainId(11155111); // Sepolia
+        Staking testStaking = new Staking(address(leo), HALVING_PERIOD, _recipients(), 5 minutes);
+        assertEq(testStaking.emissionDelay(), 5 minutes);
+        assertEq(testStaking.startTime(), block.timestamp + 5 minutes);
+
+        vm.warp(block.timestamp + 5 minutes - 1);
+        assertFalse(testStaking.emissionStarted());
+        vm.warp(block.timestamp + 1);
+        assertTrue(testStaking.emissionStarted());
     }
 
     // ---------------------------------------------------------------------
@@ -613,7 +639,7 @@ contract StakingTest is Test {
     /// FIRST_EPOCH_EMISSION in total, 2.1M LEO to each of the five buckets.
     function test_schedule_realFourYearPeriod_firstEpochEmitsExpectedTotal() public {
         uint256 fourYears = 126_230_400; // 4 * 365.25 days
-        Staking realStaking = new Staking(address(leo), fourYears, _recipients());
+        Staking realStaking = new Staking(address(leo), fourYears, _recipients(), DELAY);
         uint256 start = realStaking.startTime();
         assertEq(realStaking.scheduledEmission(start + fourYears), realStaking.FIRST_EPOCH_EMISSION());
         vm.warp(start + fourYears);

@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {LEO} from "../LEO.sol";
 import {Staking} from "../Staking.sol";
 
+uint256 constant DELAY = 24 hours;
+
 /// @dev Stateful-fuzzing handler: the invariant runner calls these functions in
 /// random sequences with random arguments, then checks the invariants below still
 /// hold after every call. Reverts from the contract under test are expected and
@@ -114,7 +116,7 @@ contract StakingInvariantTest is Test {
         for (uint256 i = 0; i < 5; i++) actors.push(contributors[i]);
 
         address[4] memory recipients = [address(0xB1), address(0xC0), address(0xC1), address(0xE5)];
-        staking = new Staking(address(leo), 500, recipients);
+        staking = new Staking(address(leo), 500, recipients, DELAY);
         leo.setStaking(address(staking));
 
         handler = new StakingInvariantHandler(leo, staking, actors, recipients);

@@ -6,6 +6,9 @@ libs = ["lib"]
 solc = "0.8.24"
 optimizer = true
 optimizer_runs = 200
+# flattened/ holds Etherscan-verification copies; they duplicate every import
+# and must not be compiled alongside the real sources.
+skip = ["flattened/**"]
 
 remappings = [
     "@openzeppelin/=../frontend/node_modules/@openzeppelin/",

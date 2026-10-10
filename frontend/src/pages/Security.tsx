@@ -37,7 +37,7 @@ const ROLES = [
 
 const TESTS = [
   { suite: 'LEO.t.sol', count: 14, covers: 'Equal 9-way genesis mint and remainder, zero/duplicate rejection, one-time setStaking, emission cap, fuzzed cap checks' },
-  { suite: 'Staking.t.sol', count: 51, covers: '24h start delay, five-way split, forfeited staker share, bucket claims and two-step hand-off, stake/claim/compound/unstake, minimum stake, dust attack, emergency exit, halving schedule' },
+  { suite: 'Staking.t.sol', count: 53, covers: 'Start delay (exactly 24h on mainnet, shorter allowed on testnet), five-way split, forfeited staker share, bucket claims and two-step hand-off, stake/claim/compound/unstake, minimum stake, dust attack, emergency exit, halving schedule' },
   { suite: 'StakingInvariant.t.sol', count: 1, covers: 'Stateful fuzzing (incl. bucket claims): totals match, solvency, five-way split never exceeds schedule, caps hold, exits never revert' },
   { suite: 'StakingEndOfLife.t.sol', count: 1, covers: '40 full-lifetime scenarios with all buckets claiming: every staker can always fully exit' },
 ];
@@ -93,7 +93,7 @@ export function Security() {
           </div>
           <div className="card-body">
             <p className="text-sm text-muted mb-4">
-              67 Foundry tests. Run them yourself with <code className="bg-surface px-1 rounded-sm">forge test</code> in
+              69 Foundry tests. Run them yourself with <code className="bg-surface px-1 rounded-sm">forge test</code> in
               the <code className="bg-surface px-1 rounded-sm">Contracts/</code> folder.
             </p>
             <div className="overflow-x-auto">
@@ -127,9 +127,9 @@ export function Security() {
             <ul className="text-sm space-y-2 list-disc list-inside text-navy">
               <li>Independent third-party audit of LEO.sol and Staking.sol.</li>
               <li>Bug bounty program live before or at launch.</li>
-              <li>Full rehearsal on Sepolia: deploy, wait the 24 hours, stake, claim every bucket, test a bucket hand-off.</li>
+              <li>Full rehearsal on Sepolia (5-minute emission delay is fine there): deploy, stake, claim every bucket, test a bucket hand-off.</li>
               <li>The 9 contributor wallets and 4 bucket wallets confirmed in writing; bucket wallets should be multisigs.</li>
-              <li>setStaking() called within 24 hours of deploying Staking (before emission starts), then LEO ownership renounced.</li>
+              <li>setStaking() called within the emission delay of deploying Staking (24 hours on mainnet) (before emission starts), then LEO ownership renounced.</li>
               <li>LEOOFT / LEOOFTAdapter delegate moved to a multisig before any bridge use.</li>
             </ul>
           </div>

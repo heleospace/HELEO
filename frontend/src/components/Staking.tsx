@@ -101,7 +101,7 @@ export function Staking() {
     }
   }, [address, contractsConfigured, publicClient, network.contracts]);
 
-  // Emission starts 24h after deploy (Staking.startTime). Until then staking is
+  // Emission starts 24h after deploy on mainnet (Staking.startTime). Until then staking is
   // open but nothing accrues, so every early staker starts at the same moment.
   useEffect(() => {
     setEmissionStart(null);

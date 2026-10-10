@@ -5,6 +5,8 @@ import {Test} from "forge-std/Test.sol";
 import {LEO} from "../LEO.sol";
 import {Staking} from "../Staking.sol";
 
+uint256 constant DELAY = 24 hours;
+
 /// @dev End-of-life regression. Runs 40 full-lifetime scenarios (5 stakers mixing
 /// stake / compound / partial unstake / claim with odd amounts) all the way past
 /// emission exhaustion, with every ecosystem bucket also claiming in full, then
@@ -18,7 +20,7 @@ contract StakingEndOfLifeTest is Test {
         for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0xA000 + i));
         if (users.length == 0) for (uint256 i = 0; i < 5; i++) users.push(contributors[i]);
         leo = new LEO(contributors);
-        staking = new Staking(address(leo), 37, recipients);
+        staking = new Staking(address(leo), 37, recipients, DELAY);
         leo.setStaking(address(staking));
         vm.warp(staking.startTime());
         for (uint256 i = 0; i < users.length; i++) {

@@ -165,7 +165,7 @@ export function Whitepaper() {
               <div className="wp-cell">
                 <dt><span className="wp-tag">live</span>Emission start</dt>
                 <dd className={live.startTime === undefined ? 'wp-pending' : undefined}>
-                  {startLabel}<small>24 hours after deployment</small>
+                  {startLabel}<small>24 hours after deployment on mainnet</small>
                 </dd>
               </div>
               <div className="wp-cell"><dt>Current Term</dt><dd>{termLabel}<small>Of 256</small></dd></div>
@@ -411,7 +411,8 @@ export function Whitepaper() {
           <p>
             Staking is open from the moment the staking contract is deployed, but emission begins
             automatically <strong>24 hours later</strong> (<code>startTime</code> = deployment +{' '}
-            <code>EMISSION_DELAY</code>). Nothing accrues during that window, so everyone who stakes
+            <code>emissionDelay</code>). On Ethereum mainnet the contract refuses any delay other than
+            exactly 24 hours; only test networks may use a shorter one. Nothing accrues during that window, so everyone who stakes
             within it starts earning at exactly the same moment — staking in the first block gives no
             advantage over staking in the last minute.
           </p>

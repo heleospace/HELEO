@@ -7,7 +7,7 @@ import { useNetwork } from '../../context/NetworkContext';
 import { ensureChain } from '../../utils/chainSwitch';
 import { createNetworkPublicClient } from '../../utils/publicClient';
 import { BUCKETS } from '../../config/contracts';
-import { CONTRIBUTOR_COUNT } from '../../config/constants';
+import { CONTRIBUTOR_COUNT, EMISSION_DELAY_SECONDS, TESTNET_EMISSION_DELAY_SECONDS } from '../../config/constants';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -29,6 +29,12 @@ function formatHalvingPreview(years: string): string | null {
       ? `${days.toFixed(1)} days`
       : `${(days / 365.25).toFixed(2)} years`;
   return `${seconds.toLocaleString()} seconds (≈ ${human}) per halving epoch`;
+}
+
+function formatDelay(seconds: number): string {
+  if (seconds % 3600 === 0) return `${seconds / 3600} hour${seconds === 3600 ? '' : 's'}`;
+  if (seconds % 60 === 0) return `${seconds / 60} minute${seconds === 60 ? '' : 's'}`;
+  return `${seconds} seconds`;
 }
 
 // One address per line (commas also accepted). Returns the parsed list plus the
@@ -59,6 +65,12 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   const [contributorsText, setContributorsText] = useState('');
   const [halvingYears, setHalvingYears] = useState('4');
   const [bucketWallets, setBucketWallets] = useState<string[]>(['', '', '', '']);
+  // Staking.sol only accepts exactly 24 hours on Ethereum mainnet; testnets may
+  // start emission sooner so a full test run doesn't wait a day.
+  const isMainnet = network.key === 'mainnet';
+  const [testnetDelayMinutes, setTestnetDelayMinutes] = useState(String(TESTNET_EMISSION_DELAY_SECONDS / 60));
+  const delaySeconds = isMainnet ? EMISSION_DELAY_SECONDS : Math.round(parseFloat(testnetDelayMinutes) * 60);
+  const delayValid = Number.isFinite(delaySeconds) && delaySeconds >= 0;
 
   const contributors = parseContributors(contributorsText);
   const contributorsReady = contributors.list.length === CONTRIBUTOR_COUNT && contributors.error === null;
@@ -158,7 +170,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
 
   const deployStaking = async () => {
     const halvingSeconds = yearsToSeconds(halvingYears);
-    if (!walletAddress || !leoAddress || !bucketsReady || !Number.isFinite(halvingSeconds) || halvingSeconds <= 0) return;
+    if (!walletAddress || !leoAddress || !bucketsReady || !delayValid || !Number.isFinite(halvingSeconds) || halvingSeconds <= 0) return;
     setStakingStatus('pending');
     setStakingError(null);
     try {
@@ -167,7 +179,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         account: walletAddress as `0x${string}`,
         abi: StakingArtifact.abi,
         bytecode: StakingArtifact.bytecode as `0x${string}`,
-        args: [leoAddress, BigInt(halvingSeconds), bucketWallets.map((a) => getAddress(a))],
+        args: [leoAddress, BigInt(halvingSeconds), bucketWallets.map((a) => getAddress(a)), BigInt(delaySeconds)],
       });
       setStakingTx(hash);
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
@@ -286,9 +298,35 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
 
       <StepShell number={2} title="Deploy Staking.sol" status={stakingStatus}>
         <p className="text-muted">
-          Constructor arguments: LEO address, the halving period, and the wallets for the four ecosystem buckets.
-          Staking opens immediately; <strong>emission starts automatically 24 hours after this transaction</strong>.
+          Constructor arguments: LEO address, the halving period, the wallets for the four ecosystem buckets, and
+          the emission delay. Staking opens immediately; <strong>emission starts automatically{' '}
+          {delayValid ? formatDelay(delaySeconds) : '…'} after this transaction</strong>.
         </p>
+        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
+          Emission delay (minutes)
+        </label>
+        {isMainnet ? (
+          <>
+            <input type="text" value="1440 (24 hours)" disabled />
+            <p className="text-xs text-muted">Fixed on Ethereum mainnet — the contract rejects any other value.</p>
+          </>
+        ) : (
+          <>
+            <input
+              type="number"
+              step="any"
+              min="0"
+              value={testnetDelayMinutes}
+              onChange={(e) => setTestnetDelayMinutes(e.target.value)}
+              disabled={stakingStatus === 'done' || stakingStatus === 'pending'}
+              placeholder="e.g. 5"
+            />
+            <p className="text-xs text-muted">
+              Testnet only. Mainnet always uses 24 hours (1440 minutes).
+            </p>
+            {!delayValid && testnetDelayMinutes && <p className="text-xs text-navy mt-1">Enter 0 or more minutes.</p>}
+          </>
+        )}
         <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
           Halving Period (years)
         </label>
@@ -335,7 +373,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         {stakingStatus !== 'done' && stakingStatus !== 'locked' && (
           <button
             onClick={deployStaking}
-            disabled={stakingStatus === 'pending' || !(yearsToSeconds(halvingYears) > 0) || !bucketsReady}
+            disabled={stakingStatus === 'pending' || !(yearsToSeconds(halvingYears) > 0) || !bucketsReady || !delayValid}
             className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
           >
             {stakingStatus === 'pending' ? 'Confirming...' : 'Deploy Staking'}
@@ -354,7 +392,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
       <StepShell number={3} title="Authorize Staking as Minter" status={authStatus}>
         <p className="text-muted">
           Calls <code className="bg-surface px-1 rounded-sm">LEO.setStaking(stakingAddress)</code> so Staking can mint
-          emission. Do this before emission starts (within 24 hours of Step 2).
+          emission. Do this before emission starts (within the emission delay of Step 2).
         </p>
         {authStatus !== 'done' && authStatus !== 'locked' && (
           <button

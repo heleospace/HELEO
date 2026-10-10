@@ -820,8 +820,10 @@ interface ILEOEmission {
 }
 
 /// @notice Permissionless HELEO staking plus the four ecosystem buckets.
-/// Staking is open from deployment; emission starts automatically EMISSION_DELAY
-/// (24 hours) after deployment, so early stakers all start on equal footing.
+/// Staking is open from deployment; emission starts automatically emissionDelay
+/// after deployment, so early stakers all start on equal footing. On Ethereum
+/// mainnet the delay is enforced to be exactly MAINNET_EMISSION_DELAY (24 hours);
+/// testnets may use a shorter delay (e.g. 5 minutes) for testing.
 /// Every second of emission is split equally five ways:
 ///   1. Stakers  — distributed pro rata through a global accretion index
 ///   2. Builder  — community building wallet
@@ -856,8 +858,9 @@ contract Staking is ReentrancyGuard {
     /// @notice Stakers + Builder + Coder + Compute + Research.
     uint256 public constant BUCKET_COUNT = 5;
     uint256 public constant ECOSYSTEM_BUCKETS = 4;
-    /// @notice Delay between deployment and the start of emission.
-    uint256 public constant EMISSION_DELAY = 24 hours;
+    /// @notice The only emission delay accepted on Ethereum mainnet.
+    uint256 public constant MAINNET_EMISSION_DELAY = 24 hours;
+    uint256 public constant MAINNET_CHAIN_ID = 1;
     // Every position is either 0 or >= MIN_STAKE, so totalStaked is either 0 or
     // >= MIN_STAKE whenever _update() divides by it. That bounds accRewardPerShare
     // for the contract's whole life at (TOTAL_EMISSION / 5) * PRECISION / MIN_STAKE
@@ -870,7 +873,9 @@ contract Staking is ReentrancyGuard {
     ILEOEmission public immutable rewardToken;
     /// @notice Length of each halving epoch, in seconds.
     uint256 public immutable halvingPeriod;
-    /// @notice Emission start: deployment time + EMISSION_DELAY.
+    /// @notice Delay between deployment and the start of emission.
+    uint256 public immutable emissionDelay;
+    /// @notice Emission start: deployment time + emissionDelay.
     uint256 public immutable startTime;
 
     uint256 public totalStaked;
@@ -914,19 +919,26 @@ contract Staking is ReentrancyGuard {
     error InvalidAddress();
     error NotBucketRecipient();
     error NotPendingRecipient();
+    error InvalidEmissionDelay();
 
     /// @param halvingPeriod_ Seconds per halving epoch (4 years = 126_230_400).
     /// @param recipients_ Initial wallets for Builder, Coder, Compute, Research.
-    constructor(address token_, uint256 halvingPeriod_, address[4] memory recipients_) {
+    /// @param emissionDelay_ Seconds from deployment until emission starts. Must be
+    ///        exactly MAINNET_EMISSION_DELAY (24 hours) on Ethereum mainnet.
+    constructor(address token_, uint256 halvingPeriod_, address[4] memory recipients_, uint256 emissionDelay_) {
         if (token_ == address(0)) revert InvalidAddress();
         if (halvingPeriod_ == 0) revert InvalidHalvingPeriod();
+        if (block.chainid == MAINNET_CHAIN_ID && emissionDelay_ != MAINNET_EMISSION_DELAY) {
+            revert InvalidEmissionDelay();
+        }
         for (uint256 i = 0; i < ECOSYSTEM_BUCKETS; ++i) {
             if (recipients_[i] == address(0)) revert InvalidAddress();
         }
         token = IERC20_0(token_);
         rewardToken = ILEOEmission(token_);
         halvingPeriod = halvingPeriod_;
-        startTime = block.timestamp + EMISSION_DELAY;
+        emissionDelay = emissionDelay_;
+        startTime = block.timestamp + emissionDelay_;
         lastUpdateTime = startTime;
         bucketRecipient = recipients_;
     }
