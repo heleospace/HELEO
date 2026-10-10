@@ -1,5 +1,5 @@
-// Mirrors audit/REPORT.md (internal review at commit 2bdbe47 plus the M-01 /
-// L-01 / L-02 / L-03 fixes). It is not an independent third-party audit, and the page says so plainly.
+// Mirrors audit/REPORT.md (internal review started at 2bdbe47; fixes and the
+// 1–21 contributor change re-verified at AUDIT_COMMIT). It is not an independent third-party audit, and the page says so plainly.
 
 const ROLES = [
   {
@@ -34,7 +34,8 @@ const ROLES = [
   },
 ];
 
-const AUDIT_COMMIT = '2bdbe47';
+// Original audit at 2bdbe47; all fixes and changes re-verified at this commit.
+const AUDIT_COMMIT = '86f3f4d';
 
 const SEVERITY_COUNTS = [
   { label: 'Critical', count: 0, note: '' },
@@ -101,6 +102,7 @@ const FINDINGS = [
   { id: 'I-02', severity: 'Info', title: 'Sub-5-wei idle remainder carries to later stakers', detail: 'Wei-level, no practical effect.', fix: '—', status: 'Accepted' },
   { id: 'I-03', severity: 'Info', title: 'nextHalvingTime() can overflow with an absurd period', detail: 'View only; ruled out on mainnet by the M-01 fix.', fix: 'M-01', status: 'Fixed' },
   { id: 'I-04', severity: 'Info', title: 'claimBucket records the claim before capping', detail: 'Can trim at most a few wei at the very end of emission.', fix: '—', status: 'Accepted' },
+  { id: 'I-05', severity: 'Info', title: 'Bridge owner keys (out of scope)', detail: 'LEOOFT / LEOOFTAdapter owners control LayerZero peers.', fix: 'Multisig; separate bridge review.', status: 'Open' },
   {
     id: 'I-06',
     severity: 'Info',
@@ -109,11 +111,10 @@ const FINDINGS = [
     fix: 'Optional: round rewardDebt up.',
     status: 'Accepted',
   },
-  { id: 'I-05', severity: 'Info', title: 'Bridge owner keys (out of scope)', detail: 'LEOOFT / LEOOFTAdapter owners control LayerZero peers.', fix: 'Multisig; separate bridge review.', status: 'Open' },
 ];
 
 const RATINGS = [
-  { contract: 'LEO', fn: 'constructor', grade: 'A', why: 'Exact genesis split; zero/duplicate wallets rejected' },
+  { contract: 'LEO', fn: 'constructor', grade: 'A', why: '1–21 wallets; exact split for every count; zero, duplicate, empty and >21 rejected' },
   { contract: 'LEO', fn: 'setStaking', grade: 'B', why: 'One-shot and renounces ownership; the minter choice is final and checkable' },
   { contract: 'LEO', fn: 'mintEmission', grade: 'A', why: 'Staking only; emission cap and max-supply cap' },
   { contract: 'LEO', fn: 'remainingEmission', grade: 'A', why: 'Pure arithmetic view' },
@@ -192,7 +193,7 @@ export function Security() {
 
       <div className="space-y-6 py-2.5 px-2">
         <div className="alert alert-primary mb-0">
-          <strong>Internal security review completed</strong> (commit <code className="font-mono">{AUDIT_COMMIT}</code>):
+          <strong>Internal security review completed</strong> (verified at commit <code className="font-mono">{AUDIT_COMMIT}</code>):
           no Critical or High findings, every Medium and Low finding is fixed, and Slither static analysis found no
           real issues. Nobody can steal staked
           funds, mint above the 42,000,000 cap, or change the emission schedule after deployment. This was an internal

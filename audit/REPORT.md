@@ -2,7 +2,7 @@
 
 | | |
 |---|---|
-| **Commit audited** | `2bdbe47299beace75f221b136539b782196dd57a`, plus the M-01 / L-01 / L-02 / L-03 fixes and the 1–21 contributor change (re-verified 2026-10-10) |
+| **Commit audited** | Initial review at `2bdbe47`. All fixes and the 1–21 contributor change re-verified at `86f3f4d` (2026-10-10). |
 | **Date** | 2026-10-10 |
 | **Scope** | `Contracts/LEO.sol`, `Contracts/Staking.sol`, `Contracts/flattened/*.flat.sol` (consistency only) |
 | **Out of scope** | OpenZeppelin / LayerZero libraries (usage reviewed only), `LEOOFT.sol`, `LEOOFTAdapter.sol`, frontend |
