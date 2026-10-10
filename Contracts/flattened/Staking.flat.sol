@@ -822,8 +822,9 @@ interface ILEOEmission {
 /// @notice Permissionless HELEO staking plus the four ecosystem buckets.
 /// Staking is open from deployment; emission starts automatically emissionDelay
 /// after deployment, so early stakers all start on equal footing. On Ethereum
-/// mainnet the delay is enforced to be exactly MAINNET_EMISSION_DELAY (24 hours);
-/// testnets may use a shorter delay (e.g. 5 minutes) for testing.
+/// mainnet the delay is enforced to be exactly MAINNET_EMISSION_DELAY (24 hours)
+/// and the halving period exactly MAINNET_HALVING_PERIOD (4 years); testnets may
+/// use shorter values (e.g. a 5-minute delay) for testing.
 /// Every second of emission is split equally five ways:
 ///   1. Stakers  — distributed pro rata through a global accretion index
 ///   2. Builder  — community building wallet
@@ -860,6 +861,8 @@ contract Staking is ReentrancyGuard {
     uint256 public constant ECOSYSTEM_BUCKETS = 4;
     /// @notice The only emission delay accepted on Ethereum mainnet.
     uint256 public constant MAINNET_EMISSION_DELAY = 24 hours;
+    /// @notice The only halving period accepted on Ethereum mainnet: 4 years of 365.25 days.
+    uint256 public constant MAINNET_HALVING_PERIOD = 126_230_400;
     uint256 public constant MAINNET_CHAIN_ID = 1;
     // Every position is either 0 or >= MIN_STAKE, so totalStaked is either 0 or
     // >= MIN_STAKE whenever _update() divides by it. That bounds accRewardPerShare
@@ -921,15 +924,17 @@ contract Staking is ReentrancyGuard {
     error NotPendingRecipient();
     error InvalidEmissionDelay();
 
-    /// @param halvingPeriod_ Seconds per halving epoch (4 years = 126_230_400).
+    /// @param halvingPeriod_ Seconds per halving epoch. Must be exactly
+    ///        MAINNET_HALVING_PERIOD (4 years = 126_230_400) on Ethereum mainnet.
     /// @param recipients_ Initial wallets for Builder, Coder, Compute, Research.
     /// @param emissionDelay_ Seconds from deployment until emission starts. Must be
     ///        exactly MAINNET_EMISSION_DELAY (24 hours) on Ethereum mainnet.
     constructor(address token_, uint256 halvingPeriod_, address[4] memory recipients_, uint256 emissionDelay_) {
         if (token_ == address(0)) revert InvalidAddress();
         if (halvingPeriod_ == 0) revert InvalidHalvingPeriod();
-        if (block.chainid == MAINNET_CHAIN_ID && emissionDelay_ != MAINNET_EMISSION_DELAY) {
-            revert InvalidEmissionDelay();
+        if (block.chainid == MAINNET_CHAIN_ID) {
+            if (emissionDelay_ != MAINNET_EMISSION_DELAY) revert InvalidEmissionDelay();
+            if (halvingPeriod_ != MAINNET_HALVING_PERIOD) revert InvalidHalvingPeriod();
         }
         for (uint256 i = 0; i < ECOSYSTEM_BUCKETS; ++i) {
             if (recipients_[i] == address(0)) revert InvalidAddress();

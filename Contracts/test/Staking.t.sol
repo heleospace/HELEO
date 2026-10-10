@@ -86,8 +86,19 @@ contract StakingTest is Test {
         vm.expectRevert(Staking.InvalidEmissionDelay.selector);
         new Staking(address(leo), HALVING_PERIOD, _recipients(), 48 hours);
 
-        Staking mainnetStaking = new Staking(address(leo), HALVING_PERIOD, _recipients(), 24 hours);
+        Staking mainnetStaking = new Staking(address(leo), 126_230_400, _recipients(), 24 hours);
         assertEq(mainnetStaking.startTime(), block.timestamp + 24 hours);
+    }
+
+    function test_constructor_mainnetRequiresExactly4YearHalving() public {
+        vm.chainId(1);
+        vm.expectRevert(Staking.InvalidHalvingPeriod.selector);
+        new Staking(address(leo), 1, _recipients(), 24 hours);
+        vm.expectRevert(Staking.InvalidHalvingPeriod.selector);
+        new Staking(address(leo), 126_230_400 - 1, _recipients(), 24 hours);
+
+        Staking mainnetStaking = new Staking(address(leo), 126_230_400, _recipients(), 24 hours);
+        assertEq(mainnetStaking.halvingPeriod(), mainnetStaking.MAINNET_HALVING_PERIOD());
     }
 
     function test_constructor_testnetAllowsShortDelay() public {

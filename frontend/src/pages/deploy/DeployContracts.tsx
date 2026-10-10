@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import { createWalletClient, custom, isAddress, getAddress } from 'viem';
 import LEOArtifact from '../../contracts-artifacts/LEO.json';
 import StakingArtifact from '../../contracts-artifacts/Staking.json';
@@ -14,6 +14,8 @@ const ZERO = '0x0000000000000000000000000000000000000000';
 // Staking's halving period is in seconds (block.timestamp based). A year here is
 // 365.25 days, so 4 years = 126,230,400 seconds exactly.
 const SECONDS_PER_YEAR = 365.25 * 24 * 60 * 60;
+// Staking.sol only accepts exactly this halving period on Ethereum mainnet.
+const MAINNET_HALVING_YEARS = '4';
 
 function yearsToSeconds(years: string): number {
   return Math.round(parseFloat(years) * SECONDS_PER_YEAR);
@@ -63,11 +65,12 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   const publicClient = createNetworkPublicClient(network);
 
   const [contributorsText, setContributorsText] = useState('');
-  const [halvingYears, setHalvingYears] = useState('4');
+  const [halvingInput, setHalvingInput] = useState(MAINNET_HALVING_YEARS);
   const [bucketWallets, setBucketWallets] = useState<string[]>(['', '', '', '']);
   // Staking.sol only accepts exactly 24 hours on Ethereum mainnet; testnets may
   // start emission sooner so a full test run doesn't wait a day.
   const isMainnet = network.key === 'mainnet';
+  const halvingYears = isMainnet ? MAINNET_HALVING_YEARS : halvingInput;
   const [testnetDelayMinutes, setTestnetDelayMinutes] = useState(String(TESTNET_EMISSION_DELAY_SECONDS / 60));
   const delaySeconds = isMainnet ? EMISSION_DELAY_SECONDS : Math.round(parseFloat(testnetDelayMinutes) * 60);
   const delayValid = Number.isFinite(delaySeconds) && delaySeconds >= 0;
@@ -90,52 +93,6 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   const [authTx, setAuthTx] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<StepStatus>('locked');
   const [authError, setAuthError] = useState<string | null>(null);
-
-  const [renounceTx, setRenounceTx] = useState<string | null>(null);
-  const [renounceStatus, setRenounceStatus] = useState<StepStatus>('active');
-  const [renounceError, setRenounceError] = useState<string | null>(null);
-  const [renounceConfirmed, setRenounceConfirmed] = useState(false);
-  const [renounceAddressInput, setRenounceAddressInput] = useState('');
-  const [renounceOwner, setRenounceOwner] = useState<string | null>(null);
-  const [renounceOwnerError, setRenounceOwnerError] = useState<string | null>(null);
-  const [checkingOwner, setCheckingOwner] = useState(false);
-
-  // Defaults to whatever Step 1 deployed this session; falls back to manual
-  // entry so this step works standalone for a contract deployed earlier.
-  const renounceTargetAddress = renounceAddressInput || leoAddress || '';
-
-  useEffect(() => {
-    if (!isAddress(renounceTargetAddress)) {
-      setRenounceOwner(null);
-      setRenounceOwnerError(null);
-      return;
-    }
-    let cancelled = false;
-    setCheckingOwner(true);
-    setRenounceOwnerError(null);
-    publicClient
-      .readContract({
-        address: renounceTargetAddress as `0x${string}`,
-        abi: LEOArtifact.abi,
-        functionName: 'owner',
-      })
-      .then((result) => {
-        if (!cancelled) setRenounceOwner(result as string);
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setRenounceOwner(null);
-          setRenounceOwnerError('Could not read owner() — is this a LEO contract on the selected network?');
-        }
-      })
-      .finally(() => {
-        if (!cancelled) setCheckingOwner(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [renounceTargetAddress, network.key]);
 
   const getWalletClient = async () => {
     if (!window.ethereum) throw new Error('MetaMask not installed');
@@ -216,37 +173,10 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
       setAuthTx(hash);
       await publicClient.waitForTransactionReceipt({ hash });
       setAuthStatus('done');
-      setRenounceStatus('active');
     } catch (err) {
       console.error('Authorizing staking failed:', err);
       setAuthError(err instanceof Error ? err.message : 'Transaction failed');
       setAuthStatus('error');
-    }
-  };
-
-  // setStaking() is a one-time setter (reverts once staking != address(0)), so
-  // once Step 3 has run, owner has no remaining capability on LEO at all —
-  // renouncing here gives up nothing functional, only proves it publicly.
-  const renounceLeo = async () => {
-    if (!walletAddress || !isAddress(renounceTargetAddress) || !renounceConfirmed) return;
-    setRenounceStatus('pending');
-    setRenounceError(null);
-    try {
-      const walletClient = await getWalletClient();
-      const hash = await walletClient.writeContract({
-        account: walletAddress as `0x${string}`,
-        address: renounceTargetAddress as `0x${string}`,
-        abi: LEOArtifact.abi,
-        functionName: 'renounceOwnership',
-        args: [],
-      });
-      setRenounceTx(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
-      setRenounceStatus('done');
-    } catch (err) {
-      console.error('Renouncing LEO ownership failed:', err);
-      setRenounceError(err instanceof Error ? err.message : 'Transaction failed');
-      setRenounceStatus('error');
     }
   };
 
@@ -330,19 +260,24 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
           Halving Period (years)
         </label>
-        <input
-          type="number"
-          step="any"
-          min="0"
-          value={halvingYears}
-          onChange={(e) => setHalvingYears(e.target.value)}
-          disabled={stakingStatus === 'done' || stakingStatus === 'pending'}
-          placeholder="e.g. 4"
-        />
+        {isMainnet ? (
+          <input type="text" value="4 (fixed on Ethereum mainnet)" disabled />
+        ) : (
+          <input
+            type="number"
+            step="any"
+            min="0"
+            value={halvingInput}
+            onChange={(e) => setHalvingInput(e.target.value)}
+            disabled={stakingStatus === 'done' || stakingStatus === 'pending'}
+            placeholder="e.g. 4"
+          />
+        )}
         {formatHalvingPreview(halvingYears) ? (
           <p className="text-xs text-muted">
             {formatHalvingPreview(halvingYears)}. Timestamp-based: each halving lands exactly this long after
             emission starts, regardless of Ethereum block time. Immutable after deployment.
+            {isMainnet && ' Fixed on Ethereum mainnet — the contract rejects any other value.'}
           </p>
         ) : (
           halvingYears && <p className="text-xs text-navy mt-1">Enter a period greater than 0.</p>
@@ -394,6 +329,10 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
           Calls <code className="bg-surface px-1 rounded-sm">LEO.setStaking(stakingAddress)</code> so Staking can mint
           emission. Do this before emission starts (within the emission delay of Step 2).
         </p>
+        <div className="alert alert-primary mt-2">
+          This is final. The same transaction renounces LEO ownership, so the minter can never be changed and LEO has
+          no owner afterwards. Check that the Staking address above is correct before confirming.
+        </div>
         {authStatus !== 'done' && authStatus !== 'locked' && (
           <button
             onClick={authorizeStaking}
@@ -405,85 +344,11 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         )}
         {authError && <p className="text-xs text-navy mt-1">{authError}</p>}
         {authTx && <TxLine hash={authTx} explorerBase={network.explorerUrl} />}
-      </StepShell>
-
-      <StepShell number={4} title="Renounce LEO Ownership (Optional)" status={renounceStatus}>
-        <p className="text-muted">
-          <code className="bg-surface px-1 rounded-sm">setStaking()</code> can only ever be called once, so after it has
-          run the owner key has no remaining capability on LEO — no mint switch, no pause, nothing. Renouncing here
-          gives up no real power; it just proves that publicly on-chain. Works standalone: defaults to the address from
-          Step 1 above if you deployed it this session, or enter any LEO address you own below.
-        </p>
-        {renounceStatus !== 'done' && (
-          <>
-            <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1 mt-2">
-              LEO Address
-            </label>
-            <input
-              type="text"
-              value={renounceAddressInput}
-              onChange={(e) => setRenounceAddressInput(e.target.value)}
-              disabled={renounceStatus === 'pending'}
-              placeholder={leoAddress || '0x...'}
-            />
-
-            {renounceTargetAddress && !isAddress(renounceTargetAddress) && (
-              <p className="text-xs text-navy mt-1">Not a valid address.</p>
-            )}
-            {isAddress(renounceTargetAddress) && checkingOwner && (
-              <p className="text-xs text-muted mt-1">Checking current owner…</p>
-            )}
-            {isAddress(renounceTargetAddress) && renounceOwnerError && (
-              <p className="text-xs text-navy mt-1">{renounceOwnerError}</p>
-            )}
-            {isAddress(renounceTargetAddress) && renounceOwner && (
-              renounceOwner === ZERO ? (
-                <p className="text-xs text-muted mt-1">Already renounced — owner is the zero address.</p>
-              ) : (
-                <>
-                  <p className="text-xs text-muted mt-1">
-                    Current owner: <span className="text-navy font-semibold">{renounceOwner}</span>
-                  </p>
-                  {walletAddress && renounceOwner.toLowerCase() !== walletAddress.toLowerCase() && (
-                    <p className="text-xs text-navy mt-1">
-                      Your connected wallet ({walletAddress}) does not match this owner — the transaction will revert.
-                    </p>
-                  )}
-                </>
-              )
-            )}
-
-            {renounceOwner && renounceOwner !== ZERO && (
-              <>
-                <div className="alert alert-primary mt-2">
-                  This is permanent and cannot be undone. Only do this once you're certain LEO is configured correctly.
-                </div>
-                <label className="flex items-center gap-2 text-xs text-muted mt-2">
-                  <input
-                    type="checkbox"
-                    checked={renounceConfirmed}
-                    onChange={(e) => setRenounceConfirmed(e.target.checked)}
-                    disabled={renounceStatus === 'pending'}
-                  />
-                  I understand this is irreversible and want to renounce ownership of LEO.
-                </label>
-                <button
-                  onClick={renounceLeo}
-                  disabled={renounceStatus === 'pending' || !renounceConfirmed}
-                  className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
-                >
-                  {renounceStatus === 'pending' ? 'Confirming...' : 'Renounce LEO Ownership'}
-                </button>
-              </>
-            )}
-          </>
-        )}
-        {renounceError && <p className="text-xs text-navy mt-1">{renounceError}</p>}
-        {renounceTx && <TxLine hash={renounceTx} explorerBase={network.explorerUrl} />}
-        {renounceStatus === 'done' && (
-          <p className="text-xs text-muted mt-1">Ownership renounced — LEO now has no owner.</p>
+        {authStatus === 'done' && (
+          <p className="text-xs text-muted mt-1">Staking authorized and LEO ownership renounced — LEO now has no owner.</p>
         )}
       </StepShell>
+
 
       {allDone && (() => {
         const suffix = network.key === 'mainnet' ? 'MAINNET' : 'SEPOLIA';

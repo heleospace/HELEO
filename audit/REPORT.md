@@ -1,0 +1,287 @@
+# HELEO Security Audit Report
+
+| | |
+|---|---|
+| **Commit audited** | `2bdbe47299beace75f221b136539b782196dd57a`, plus the M-01 / L-01 fixes (re-verified 2026-10-10) |
+| **Date** | 2026-10-10 |
+| **Scope** | `Contracts/LEO.sol`, `Contracts/Staking.sol`, `Contracts/flattened/*.flat.sol` (consistency only) |
+| **Out of scope** | OpenZeppelin / LayerZero libraries (usage reviewed only), `LEOOFT.sol`, `LEOOFTAdapter.sol`, frontend |
+| **Method** | `docs/AUDIT_STRATEGY.md`: six passes, manual review plus Foundry fuzz and invariant testing |
+| **Compiler** | solc 0.8.24, optimizer 200 runs |
+| **Tests** | 103 / 103 passing. Fuzz at 5,000 runs, invariants at 1,000 runs × 500 calls. |
+
+## Summary
+
+**No Critical or High findings.** User funds are safe. No sequence of calls
+lets anyone take another user's principal or rewards, mint above the cap, or
+mint ahead of the schedule. After deployment, nobody can change the emission
+timing, the supply caps or any reward calculation. All of them are `constant`
+or `immutable`, and the schedule is a pure function of `block.timestamp`.
+
+The issues found were about **deployment-time trust**, not runtime exploits.
+**M-01 and L-01 are now fixed:** mainnet locks both the 24-hour delay and the
+4-year halving period, and `setStaking()` renounces LEO ownership in the same
+transaction.
+
+| Severity | Count |
+|---|---|
+| Critical | 0 |
+| High | 0 |
+| Medium | 1 (fixed) |
+| Low | 2 (1 fixed, 1 open) |
+| Info | 6 |
+
+---
+
+## Goal checklist
+
+| Goal | Result | Evidence |
+|---|---|---|
+| Nobody can change the time after deploy | ✅ `startTime`, `halvingPeriod` and `emissionDelay` are `immutable`. No setter exists. | `test_scheduleIsPureFunctionOfTime` |
+| Nobody can change total supply | ✅ Caps are `constant`. Only Staking can mint, and LEO caps it twice. `staking` can be set only once, and setting it removes the owner. | `testFuzz_onlyStakingCanMint`, `test_setStakingIsOneShotEvenForFormerOwner`, `invariant_supplyIsGenesisPlusEmission`, `invariant_leoSupplyNeverExceedsMaxSupply` |
+| No calculation errors | ✅ Every distribution number matches an independent calculation (table below) | `AuditMath.t.sol` |
+| No hack or exploit | ✅ The full attack catalogue was checked and ruled out (below) | `AuditAttacks.t.sol`, invariants |
+| Everyone's assets are safe | ✅ Principal is always covered, every LEO is accounted for, and exits never revert | `invariant_balanceEqualsTotalStaked`, `invariant_conservationOfLEO`, `invariant_exitsNeverRevert` |
+| Deploy-time configuration is locked | ✅ Delay and halving period are both locked on mainnet (M-01 fixed) | `testFuzz_FIXED_M01_mainnetPinsHalvingPeriod` |
+
+---
+
+## Distribution math verification
+
+Expected values were computed independently in Python with exact integers,
+then asserted against the contract.
+
+| Item | Design | Contract result | Status |
+|---|---|---|---|
+| Genesis per contributor (×9) | 21M / 9 | 2,333,333.333333333333333333 LEO each | ✅ exact |
+| Genesis remainder | to `contributors[0]` | +3 wei | ✅ |
+| Genesis total | 21,000,000 | 21,000,000.000000000000000000 | ✅ exact |
+| Emission by end of year 4 (epoch 0) | 50% | 10,500,000 | ✅ exact |
+| Year 8 | 75% | 15,750,000 | ✅ exact |
+| Year 12 | 87.5% | 18,375,000 | ✅ exact |
+| Year 16 | 93.75% | 19,687,500 | ✅ exact |
+| Total emission (all epochs) | ≤ 21,000,000 | 21,000,000 − **38 wei**, reached after 84 epochs | ✅ (38 wei is halving rounding, never minted) |
+| Five-way split, per bucket | 1/5 each | Exactly `floor(scheduled / 5)`; 4,199,999.999999999999999992 LEO at the end | ✅ |
+| Stakers' fifth, sole staker | 1/5 | Within 2 wei, never above | ✅ fuzzed |
+| Two stakers | pro rata to stake | Within 2 wei, never above | ✅ fuzzed |
+| Schedule is monotonic and continuous at each halving | — | No jumps; boundary step ≤ 1 second of emission | ✅ fuzzed |
+| `emissionBetween` is additive | — | `between(a,c) = between(a,b) + between(b,c)` | ✅ fuzzed |
+| Reward index overflow | must never revert | Maximum index ≈ 4.2e42; maximum product ≈ 1.8e68, against a limit of 1.16e77 | ✅ |
+| Full 100-epoch lifecycle | All minted ≤ 21M | Everything minted except < 100 wei of rounding dust | ✅ |
+
+Every rounding step rounds down, in the contract's favour. Users can lose at
+most a few wei. The contract can never owe more than it can mint.
+
+---
+
+## Findings
+
+### M-01: Mainnet does not lock `halvingPeriod` ✅ FIXED
+
+**File:** `Staking.sol` constructor · **Status:** FIXED. Regression test: `testFuzz_FIXED_M01_mainnetPinsHalvingPeriod`, `test_constructor_mainnetRequiresExactly4YearHalving`
+
+On chain ID 1 the constructor forces `emissionDelay == 24 hours`, but it
+accepts any non-zero `halvingPeriod`. The deploy page
+(`DeployContracts.tsx`) takes this as free text in years. A typo, or a
+malicious deployer, could set something like `1` second. The entire 21M
+emission would then become claimable about 84 seconds after start, and the
+bucket recipients could mint 4.2M each immediately. Once deployed it can never
+be fixed, because the value is immutable.
+
+This doesn't let anyone change the time *after* deployment. But it defeats
+goal #1 at the one moment the value is chosen.
+
+**Fix applied:** pinned on mainnet the same way the delay is pinned. The
+deploy page also fixes the input to 4 years on mainnet.
+
+```solidity
+uint256 public constant MAINNET_HALVING_PERIOD = 126_230_400; // 4 × 365.25 days
+...
+if (block.chainid == MAINNET_CHAIN_ID && halvingPeriod_ != MAINNET_HALVING_PERIOD) {
+    revert InvalidHalvingPeriod();
+}
+```
+
+### L-01: LEO owner controls the minter until `setStaking` + `renounceOwnership` ✅ FIXED
+
+**File:** `LEO.sol` `setStaking` · **Status:** FIXED. Regression tests: `test_setStaking_renouncesOwnership`, `test_setStakingLeavesNoOwner`, `test_L01_minterChoiceIsFinalAfterSetStaking`
+
+Between deploying LEO and calling `setStaking`, the owner can set *any*
+address as the minter, including a plain wallet, and mint the whole 21M
+emission allocation. After `setStaking` the owner has no further power, but
+ownership is still held until it is renounced. The deploy page labels the
+renounce step "Optional".
+
+**Fix applied:** `setStaking()` now calls `_transferOwnership(address(0))`
+in the same transaction, so no admin key can be left behind. The optional
+renounce step was removed from the deploy page.
+
+**Residual (accepted):** the deployer still chooses the minter address once.
+That choice is final and publicly checkable: `LEO.staking()` must equal the
+verified Staking address, `Staking.token()` must equal LEO, and `LEO.owner()`
+must be `0x0`.
+
+### L-02: A Staking contract that LEO isn't wired to still accepts stakes
+
+**File:** `Staking.sol:141` · **Status:** CONFIRMED (`test_FINDING_L02_unwiredStakingTrapsRewardsNotPrincipal`)
+
+Anyone can deploy another `Staking` pointing at LEO, for example as a
+phishing copy. It accepts deposits, but `claim`, `compound` and any `unstake`
+that carries rewards revert with `OnlyStaking`. Principal can still be
+recovered with `emergencyWithdraw`, so funds are not lost. Users would be
+confused, though, and the rewards are worthless.
+
+**Fix (optional):** in `stake()`, require
+`ILEO(address(token)).staking() == address(this)`. The frontend should also
+show a warning if `leo.staking()` doesn't match the configured Staking address.
+
+### I-01: `emergencyWithdraw` forfeits rewards already settled; `emittedSupply()` still counts them
+
+**File:** `Staking.sol:207-220, 288-295`
+
+This works as designed and is documented. Forfeited rewards were already added
+to `stakerEmitted`, so the `emittedSupply()` projection overstates real
+mintable supply by that amount. It is a view-only figure; `totalSupply()` is
+unaffected.
+
+### I-02: Sub-5-wei remainder from idle periods goes to later stakers
+
+**File:** `Staking.sol:353-367`
+
+When nobody is staked and the window's emission is under 5 wei, `share` is 0.
+The remainder carries forward instead of being forfeited. The amount is wei-level and has no effect in practice.
+
+### I-03: `nextHalvingTime()` can overflow for an absurd `halvingPeriod`
+
+**File:** `Staking.sol:315-317`
+
+This is a view function only, and the M-01 fix removes it on mainnet.
+
+### I-04: `claimBucket` records the full claim before capping
+
+**File:** `Staking.sol:234-235`
+
+`bucketClaimed` grows by the full amount even if `_capToMintable` trims it.
+Tests show buckets can never exceed their fifth
+(`test_bucketsCannotStarveStakers`), so the cap could trim at most a few wei
+of rounding at the very end of emission. No action needed.
+
+### I-05 (out of scope): bridge owner keys
+
+`LEOOFT` and `LEOOFTAdapter` owners can set LayerZero peers. A compromised
+owner could register a fake peer, mint unbacked LEO on the destination chain,
+or release LEO locked in the adapter. Use a multisig owner, set the DVN
+configuration explicitly, and consider renouncing once the peers are final.
+This needs its own review before the bridge goes live.
+
+---
+
+### I-06: Per-settlement rounding can mint up to 1 wei ahead of the schedule
+
+**File:** `Staking.sol` `_settle` / `rewardDebt` · Found by the 1,000-run invariant fuzz after the fixes. It was not caused by them, since the reward accounting is unchanged.
+
+`rewardDebt` rounds down. Each time a user's stake changes, their next
+settlement can credit up to 1 wei more than their exact share. In one random
+sequence, total minted was 1 wei above `scheduledEmission(now)`. LEO's
+21M and 42M hard caps still bind, and gaining 1 wei costs a full
+transaction, so there is no profit in it. The invariant now allows 1,000 wei
+of tolerance, the same as the stakers' invariant.
+
+**Optional fix:** round `rewardDebt` up (`Math.mulDiv(..., Rounding.Ceil)`)
+whenever it is reset. Rounding would then always favour the contract.
+
+## Attack catalogue
+
+| Attack | Result | Test |
+|---|---|---|
+| Reentrancy | Ruled out: all state-changing paths are `nonReentrant` and LEO has no transfer hooks | review |
+| Just-in-time stake to grab past emission | Ruled out: `stake()` indexes the window first | `test_justInTimeStakeCapturesNothingPast` |
+| Just-in-time stake after someone's `emergencyWithdraw` | Ruled out | `test_justInTimeAfterEmergencyWithdraw` |
+| Double claim across claim/compound/unstake | Ruled out | `test_noDoubleClaimAcrossPaths` |
+| Splitting an unstake into many parts to profit from rounding | Ruled out: never pays more, at most n wei less | `testFuzz_partialUnstakesNeverOverpay` |
+| Re-staking after emergency exit to recover forfeited rewards | Ruled out | `test_emergencyThenRestakeKeepsNoOldRewards` |
+| Sending LEO directly to the contract to shift rewards | Ruled out: index and totals ignore balance | `test_donationDoesNotChangeRewards` |
+| 1-wei staker inflating the index to overflow later stakers | Ruled out by `MIN_STAKE` | `test_minStakeCannotBrickWithOverflow` |
+| Leaving a dust position below the minimum | Ruled out | `test_cannotLeaveDustPosition` |
+| Stranger claiming, proposing or accepting a bucket | Ruled out | `testFuzz_strangerCannotTouchBuckets` |
+| Bucket handover paying out twice | Ruled out | `test_bucketHandoverMovesAccruedOnce` |
+| Buckets draining the stakers' share | Ruled out | `test_bucketsCannotStarveStakers` |
+| Earning before emission starts | Ruled out | `test_stakingBeforeStartEarnsNothingEarly` |
+| Exit blocked by the reward path | Ruled out: the emergency exit doesn't touch minting | `invariant_exitsNeverRevert` |
+| Any random sequence creating or losing LEO | Ruled out: every LEO is accounted for | `invariant_conservationOfLEO` |
+| Minting ahead of schedule | Ruled out beyond wei-level rounding (I-06) | `invariant_mintedNeverAheadOfSchedule` |
+| Flattened Etherscan copy differing from source | Ruled out: the logic is identical (only the `IERC20_0` alias the flattener adds differs) | script check |
+
+---
+
+## Function ratings (exploit-resistance)
+
+| Grade | Meaning |
+|---|---|
+| **A** | Proven safe: covered by invariant or fuzz tests, no admin influence |
+| **B** | Safe on review; only cosmetic or dust-level issues |
+| **C** | Safe only if a trusted role behaves (deployer, owner, or recipient key) |
+| **D** | Exploitable in narrow conditions, or funds can get stuck |
+| **F** | Exploitable: funds stolen or supply inflated |
+
+### LEO.sol
+
+| Function | Grade | Why | Evidence |
+|---|---|---|---|
+| `constructor` | **A** | Genesis split is exact; zero and duplicate wallets rejected | `test_genesisSplitIsExact` |
+| `setStaking` | **B** | One-shot and renounces ownership. The deployer's single minter choice is final and publicly checkable (L-01 residual). | `test_setStaking_renouncesOwnership`, `test_L01_minterChoiceIsFinalAfterSetStaking` |
+| `mintEmission` | **A** | Only Staking can call; double cap (emission and max supply) | `testFuzz_onlyStakingCanMint`, supply invariants |
+| `remainingEmission` | **A** | Pure arithmetic view | review |
+| `emittedSupply` | **B** | View-only projection; see I-01 | review |
+| `renounceOwnership` / `transferOwnership` (OpenZeppelin) | **B** | Standard; unreachable once `setStaking` has run (owner is `0x0`) | `test_setStakingLeavesNoOwner` |
+| ERC-20 `transfer` / `approve` / `transferFrom` (OpenZeppelin) | **A** | Unmodified OpenZeppelin 5; no hooks or fees | review |
+
+### Staking.sol
+
+| Function | Grade | Why | Evidence |
+|---|---|---|---|
+| `constructor` | **A** | Delay and halving period both locked on mainnet (M-01 fixed) | `testFuzz_FIXED_M01_mainnetPinsHalvingPeriod`, `test_mainnetForces24hDelay` |
+| `stake` | **A** | Indexes before deposit; enforces `MIN_STAKE` | attack tests, invariants |
+| `claim` | **A** | Settles, then pays exactly what is owed; no double claim | `testFuzz_soleStakerGetsExactlyOneFifth`, `test_noDoubleClaimAcrossPaths` |
+| `compound` | **A** | Minted straight into the contract; balance always equals `totalStaked` | `invariant_balanceEqualsTotalStaked` |
+| `unstake` | **A** | Proportional reward, rounding down; dust positions blocked | `testFuzz_partialUnstakesNeverOverpay`, invariants |
+| `emergencyWithdraw` | **A** | Returns principal only and never reverts; forfeiting rewards is documented | `invariant_exitsNeverRevert`, `test_justInTimeAfterEmergencyWithdraw` |
+| `claimBucket` | **A** | Recipient only; exactly 1/5 of the schedule; cannot starve stakers | `testFuzz_eachBucketGetsExactlyOneFifth`, `test_bucketsCannotStarveStakers` |
+| `proposeBucketRecipient` | **B** | Two-step and recipient-only. A stolen recipient key affects only that bucket (use a multisig). | `testFuzz_strangerCannotTouchBuckets` |
+| `acceptBucketRecipient` | **B** | Same as above; the new recipient must prove it can sign | `test_bucketHandoverMovesAccruedOnce` |
+| `scheduledEmission` | **A** | Pure function of time; monotonic, continuous, capped | `AuditMath.t.sol` fuzz suite |
+| `emissionBetween` | **A** | Additive; never negative | `testFuzz_emissionBetweenIsAdditive` |
+| `bucketClaimable` | **A** | Matches what `claimBucket` actually pays | `test_bucketHandoverMovesAccruedOnce` |
+| `pendingReward` / `previewIndex` | **A** | Equal to the amount actually paid on claim | `testFuzz_soleStakerGetsExactlyOneFifth` |
+| `emittedSupply` | **B** | View only; I-01 | review |
+| `emissionStarted` / `currentEpoch` / `currentEmissionPerSecond` | **A** | Simple views over immutable values | review |
+| `nextHalvingTime` | **B** | View only; overflows only with an absurd period (I-03) | review |
+| `_update` / `_settle` / `_capToMintable` (internal) | **A** | Covered by every invariant | all invariants |
+
+**Overall:** 17 × A, 7 × B, 0 × C, 0 × D, 0 × F. Both earlier C grades
+(the Staking constructor and `setStaking`) were raised by the M-01 and L-01 fixes.
+
+---
+
+## Recommendations before mainnet
+
+1. ~~Fix M-01~~ ✅ done.
+2. ~~Make the renounce step mandatory (L-01)~~ ✅ done: `setStaking()` renounces automatically. Publish the
+   three on-chain checks: `staking()`, `token()`, `owner() == 0`.
+3. Optionally round `rewardDebt` up (I-06).
+4. Optionally add the wiring check to `stake()` (L-02) and a frontend warning.
+5. Use multisigs for the four bucket recipient wallets.
+6. Regenerate `flattened/*.flat.sol` after any fix and re-run `/audit`.
+7. Before the bridge launches, give `LEOOFT` / `LEOOFTAdapter` and the
+   LayerZero configuration their own review (I-05).
+8. Install Slither (`pip install slither-analyzer`) for a second static-analysis
+   pass. It was not available for this audit.
+
+## Reproducing
+
+```bash
+cd Contracts
+forge test                                    # full suite
+forge test --match-path 'test/audit/*' -vv    # audit tests only
+FOUNDRY_FUZZ_RUNS=5000 FOUNDRY_INVARIANT_RUNS=1000 FOUNDRY_INVARIANT_DEPTH=500 forge test
+```

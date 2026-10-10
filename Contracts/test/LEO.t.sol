@@ -55,10 +55,19 @@ contract LEOTest is Test {
         assertEq(leo.staking(), staking);
     }
 
+    function test_setStaking_renouncesOwnership() public {
+        assertEq(leo.owner(), address(this));
+        leo.setStaking(staking);
+        assertEq(leo.owner(), address(0));
+    }
+
+    /// Ownership is gone after the first call, so even the former owner is
+    /// rejected before StakingAlreadySet is reached.
     function test_setStaking_revertsIfAlreadySet() public {
         leo.setStaking(staking);
-        vm.expectRevert(LEO.StakingAlreadySet.selector);
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
         leo.setStaking(address(0xBEEF));
+        assertEq(leo.staking(), staking);
     }
 
     function test_setStaking_revertsOnZeroAddress() public {

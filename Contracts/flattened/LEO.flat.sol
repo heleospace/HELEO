@@ -734,13 +734,14 @@ contract LEO is ERC20, Ownable {
     }
 
     /// @dev One-time, irreversible wiring — there is no way to change `staking`
-    /// once set. After calling this, owner retains no further privileged function
-    /// in this contract; call renounceOwnership() post-setup to remove the
-    /// otherwise-unused admin key as an attack surface.
+    /// once set. setStaking() is the owner's only privileged function, so it
+    /// renounces ownership in the same transaction: owner() is the zero address
+    /// from then on and no admin key is left behind as an attack surface.
     function setStaking(address staking_) external onlyOwner {
         if (staking_ == address(0)) revert InvalidAddress();
         if (staking != address(0)) revert StakingAlreadySet();
         staking = staking_;
+        _transferOwnership(address(0));
     }
 
     /// @notice Mints emission for stakers and the four ecosystem buckets.
