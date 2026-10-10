@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.4.16 >=0.6.2 ^0.8.20 ^0.8.24;
 
-// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol
+// @openzeppelin/contracts/utils/introspection/IERC165.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (utils/introspection/IERC165.sol)
 
@@ -26,14 +26,14 @@ interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
-// ../frontend/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol
+// @openzeppelin/contracts/token/ERC20/IERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/IERC20.sol)
 
 /**
  * @dev Interface of the ERC-20 standard as defined in the ERC.
  */
-interface IERC20_0 {
+interface IERC20 {
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
      * another (`to`).
@@ -105,86 +105,7 @@ interface IERC20_0 {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
-// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol
-
-// OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/IERC20.sol)
-
-/**
- * @dev Interface of the ERC-20 standard as defined in the ERC.
- */
-interface IERC20_1 {
-    /**
-     * @dev Emitted when `value` tokens are moved from one account (`from`) to
-     * another (`to`).
-     *
-     * Note that `value` may be zero.
-     */
-    event Transfer(address indexed from, address indexed to, uint256 value);
-
-    /**
-     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
-     * a call to {approve}. `value` is the new allowance.
-     */
-    event Approval(address indexed owner, address indexed spender, uint256 value);
-
-    /**
-     * @dev Returns the value of tokens in existence.
-     */
-    function totalSupply() external view returns (uint256);
-
-    /**
-     * @dev Returns the value of tokens owned by `account`.
-     */
-    function balanceOf(address account) external view returns (uint256);
-
-    /**
-     * @dev Moves a `value` amount of tokens from the caller's account to `to`.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transfer(address to, uint256 value) external returns (bool);
-
-    /**
-     * @dev Returns the remaining number of tokens that `spender` will be
-     * allowed to spend on behalf of `owner` through {transferFrom}. This is
-     * zero by default.
-     *
-     * This value changes when {approve} or {transferFrom} are called.
-     */
-    function allowance(address owner, address spender) external view returns (uint256);
-
-    /**
-     * @dev Sets a `value` amount of tokens as the allowance of `spender` over the
-     * caller's tokens.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * IMPORTANT: Beware that changing an allowance with this method brings the risk
-     * that someone may use both the old and the new allowance by unfortunate
-     * transaction ordering. One possible solution to mitigate this race
-     * condition is to first reduce the spender's allowance to 0 and set the
-     * desired value afterwards:
-     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
-     *
-     * Emits an {Approval} event.
-     */
-    function approve(address spender, uint256 value) external returns (bool);
-
-    /**
-     * @dev Moves a `value` amount of tokens from `from` to `to` using the
-     * allowance mechanism. `value` is then deducted from the caller's
-     * allowance.
-     *
-     * Returns a boolean value indicating whether the operation succeeded.
-     *
-     * Emits a {Transfer} event.
-     */
-    function transferFrom(address from, address to, uint256 value) external returns (bool);
-}
-
-// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/utils/StorageSlot.sol
+// @openzeppelin/contracts/utils/StorageSlot.sol
 
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/StorageSlot.sol)
 // This file was procedurally generated from scripts/generate/templates/StorageSlot.js.
@@ -327,15 +248,15 @@ library StorageSlot {
     }
 }
 
-// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/interfaces/IERC165.sol
+// @openzeppelin/contracts/interfaces/IERC165.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC165.sol)
 
-// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/interfaces/IERC20.sol
+// @openzeppelin/contracts/interfaces/IERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC20.sol)
 
-// ../frontend/node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol
+// @openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 // OpenZeppelin Contracts (last updated v5.5.0) (utils/ReentrancyGuard.sol)
 
@@ -452,7 +373,7 @@ abstract contract ReentrancyGuard {
     }
 }
 
-// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/interfaces/IERC1363.sol
+// @openzeppelin/contracts/interfaces/IERC1363.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC1363.sol)
 
@@ -463,7 +384,7 @@ abstract contract ReentrancyGuard {
  * Defines an extension interface for ERC-20 tokens that supports executing code on a recipient contract
  * after `transfer` or `transferFrom`, or code on a spender contract after `approve`, in a single transaction.
  */
-interface IERC1363 is IERC20_1, IERC165 {
+interface IERC1363 is IERC20, IERC165 {
     /*
      * Note: the ERC-165 identifier for this interface is 0xb0202a11.
      * 0xb0202a11 ===
@@ -535,7 +456,7 @@ interface IERC1363 is IERC20_1, IERC165 {
     function approveAndCall(address spender, uint256 value, bytes calldata data) external returns (bool);
 }
 
-// ../frontend/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
+// @openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.5.0) (token/ERC20/utils/SafeERC20.sol)
 
@@ -563,7 +484,7 @@ library SafeERC20 {
      * @dev Transfer `value` amount of `token` from the calling contract to `to`. If `token` returns no value,
      * non-reverting calls are assumed to be successful.
      */
-    function safeTransfer(IERC20_0 token, address to, uint256 value) internal {
+    function safeTransfer(IERC20 token, address to, uint256 value) internal {
         if (!_safeTransfer(token, to, value, true)) {
             revert SafeERC20FailedOperation(address(token));
         }
@@ -573,7 +494,7 @@ library SafeERC20 {
      * @dev Transfer `value` amount of `token` from `from` to `to`, spending the approval given by `from` to the
      * calling contract. If `token` returns no value, non-reverting calls are assumed to be successful.
      */
-    function safeTransferFrom(IERC20_0 token, address from, address to, uint256 value) internal {
+    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
         if (!_safeTransferFrom(token, from, to, value, true)) {
             revert SafeERC20FailedOperation(address(token));
         }
@@ -582,14 +503,14 @@ library SafeERC20 {
     /**
      * @dev Variant of {safeTransfer} that returns a bool instead of reverting if the operation is not successful.
      */
-    function trySafeTransfer(IERC20_0 token, address to, uint256 value) internal returns (bool) {
+    function trySafeTransfer(IERC20 token, address to, uint256 value) internal returns (bool) {
         return _safeTransfer(token, to, value, false);
     }
 
     /**
      * @dev Variant of {safeTransferFrom} that returns a bool instead of reverting if the operation is not successful.
      */
-    function trySafeTransferFrom(IERC20_0 token, address from, address to, uint256 value) internal returns (bool) {
+    function trySafeTransferFrom(IERC20 token, address from, address to, uint256 value) internal returns (bool) {
         return _safeTransferFrom(token, from, to, value, false);
     }
 
@@ -602,7 +523,7 @@ library SafeERC20 {
      * this function. Performing a {safeIncreaseAllowance} or {safeDecreaseAllowance} operation on a token contract
      * that has a non-zero temporary allowance (for that particular owner-spender) will result in unexpected behavior.
      */
-    function safeIncreaseAllowance(IERC20_0 token, address spender, uint256 value) internal {
+    function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
         uint256 oldAllowance = token.allowance(address(this), spender);
         forceApprove(token, spender, oldAllowance + value);
     }
@@ -616,7 +537,7 @@ library SafeERC20 {
      * this function. Performing a {safeIncreaseAllowance} or {safeDecreaseAllowance} operation on a token contract
      * that has a non-zero temporary allowance (for that particular owner-spender) will result in unexpected behavior.
      */
-    function safeDecreaseAllowance(IERC20_0 token, address spender, uint256 requestedDecrease) internal {
+    function safeDecreaseAllowance(IERC20 token, address spender, uint256 requestedDecrease) internal {
         unchecked {
             uint256 currentAllowance = token.allowance(address(this), spender);
             if (currentAllowance < requestedDecrease) {
@@ -635,7 +556,7 @@ library SafeERC20 {
      * only sets the "standard" allowance. Any temporary allowance will remain active, in addition to the value being
      * set here.
      */
-    function forceApprove(IERC20_0 token, address spender, uint256 value) internal {
+    function forceApprove(IERC20 token, address spender, uint256 value) internal {
         if (!_safeApprove(token, spender, value, false)) {
             if (!_safeApprove(token, spender, 0, true)) revert SafeERC20FailedOperation(address(token));
             if (!_safeApprove(token, spender, value, true)) revert SafeERC20FailedOperation(address(token));
@@ -706,8 +627,8 @@ library SafeERC20 {
      * @param value The amount of token to transfer
      * @param bubble Behavior switch if the transfer call reverts: bubble the revert reason or return a false boolean.
      */
-    function _safeTransfer(IERC20_0 token, address to, uint256 value, bool bubble) private returns (bool success) {
-        bytes4 selector = IERC20_0.transfer.selector;
+    function _safeTransfer(IERC20 token, address to, uint256 value, bool bubble) private returns (bool success) {
+        bytes4 selector = IERC20.transfer.selector;
 
         assembly ("memory-safe") {
             let fmp := mload(0x40)
@@ -743,13 +664,13 @@ library SafeERC20 {
      * @param bubble Behavior switch if the transfer call reverts: bubble the revert reason or return a false boolean.
      */
     function _safeTransferFrom(
-        IERC20_0 token,
+        IERC20 token,
         address from,
         address to,
         uint256 value,
         bool bubble
     ) private returns (bool success) {
-        bytes4 selector = IERC20_0.transferFrom.selector;
+        bytes4 selector = IERC20.transferFrom.selector;
 
         assembly ("memory-safe") {
             let fmp := mload(0x40)
@@ -785,8 +706,8 @@ library SafeERC20 {
      * @param value The amount of token to transfer
      * @param bubble Behavior switch if the transfer call reverts: bubble the revert reason or return a false boolean.
      */
-    function _safeApprove(IERC20_0 token, address spender, uint256 value, bool bubble) private returns (bool success) {
-        bytes4 selector = IERC20_0.approve.selector;
+    function _safeApprove(IERC20 token, address spender, uint256 value, bool bubble) private returns (bool success) {
+        bytes4 selector = IERC20.approve.selector;
 
         assembly ("memory-safe") {
             let fmp := mload(0x40)
@@ -817,10 +738,12 @@ library SafeERC20 {
 interface ILEOEmission {
     function mintEmission(address to, uint256 amount) external;
     function remainingEmission() external view returns (uint256);
+    function staking() external view returns (address);
 }
 
 /// @notice Permissionless HELEO staking plus the four ecosystem buckets.
-/// Staking is open from deployment; emission starts automatically emissionDelay
+/// Staking opens once LEO wires this contract as its minter (setStaking, done
+/// right after deployment); emission starts automatically emissionDelay
 /// after deployment, so early stakers all start on equal footing. On Ethereum
 /// mainnet the delay is enforced to be exactly MAINNET_EMISSION_DELAY (24 hours)
 /// and the halving period exactly MAINNET_HALVING_PERIOD (4 years); testnets may
@@ -839,7 +762,7 @@ interface ILEOEmission {
 /// changes to Ethereum's block time or missed slots. On Ethereum mainnet a block's
 /// timestamp is fixed by its slot, so proposers cannot shift it.
 contract Staking is ReentrancyGuard {
-    using SafeERC20 for IERC20_0;
+    using SafeERC20 for IERC20;
 
     enum Bucket {
         Builder,
@@ -872,7 +795,7 @@ contract Staking is ReentrancyGuard {
     // normal-sized stakes overflow and revert forever.
     uint256 public constant MIN_STAKE = 1 ether;
 
-    IERC20_0 public immutable token;
+    IERC20 public immutable token;
     ILEOEmission public immutable rewardToken;
     /// @notice Length of each halving epoch, in seconds.
     uint256 public immutable halvingPeriod;
@@ -923,6 +846,7 @@ contract Staking is ReentrancyGuard {
     error NotBucketRecipient();
     error NotPendingRecipient();
     error InvalidEmissionDelay();
+    error NotWiredMinter();
 
     /// @param halvingPeriod_ Seconds per halving epoch. Must be exactly
     ///        MAINNET_HALVING_PERIOD (4 years = 126_230_400) on Ethereum mainnet.
@@ -939,7 +863,7 @@ contract Staking is ReentrancyGuard {
         for (uint256 i = 0; i < ECOSYSTEM_BUCKETS; ++i) {
             if (recipients_[i] == address(0)) revert InvalidAddress();
         }
-        token = IERC20_0(token_);
+        token = IERC20(token_);
         rewardToken = ILEOEmission(token_);
         halvingPeriod = halvingPeriod_;
         emissionDelay = emissionDelay_;
@@ -952,8 +876,12 @@ contract Staking is ReentrancyGuard {
     // Staking
     // ---------------------------------------------------------------------
 
+    /// @dev Only accepts deposits once LEO has wired this contract as its minter
+    /// (LEO.staking() == this). A copy of Staking that LEO does not point to
+    /// could never pay rewards, so it refuses stakes instead of trapping them.
     function stake(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
+        if (rewardToken.staking() != address(this)) revert NotWiredMinter();
         UserInfo storage u = users[msg.sender];
         if (u.amount + amount < MIN_STAKE) revert BelowMinimumStake();
 

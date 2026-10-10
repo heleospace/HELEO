@@ -7,7 +7,7 @@ import { useNetwork } from '../../context/NetworkContext';
 import { ensureChain } from '../../utils/chainSwitch';
 import { createNetworkPublicClient } from '../../utils/publicClient';
 import { BUCKETS } from '../../config/contracts';
-import { CONTRIBUTOR_COUNT, EMISSION_DELAY_SECONDS, TESTNET_EMISSION_DELAY_SECONDS } from '../../config/constants';
+import { MIN_CONTRIBUTORS, MAX_CONTRIBUTORS, EMISSION_DELAY_SECONDS, TESTNET_EMISSION_DELAY_SECONDS } from '../../config/constants';
 
 const ZERO = '0x0000000000000000000000000000000000000000';
 
@@ -40,8 +40,8 @@ function formatDelay(seconds: number): string {
 }
 
 // One address per line (commas also accepted). Returns the parsed list plus the
-// first problem found, mirroring LEO's constructor checks: exactly 9, non-zero,
-// no duplicates.
+// first problem found, mirroring LEO's constructor checks: 1 to 21 wallets,
+// non-zero, no duplicates.
 function parseContributors(text: string): { list: string[]; error: string | null } {
   const list = text.split(/[\s,]+/).map((a) => a.trim()).filter(Boolean);
   if (list.length === 0) return { list, error: null };
@@ -54,8 +54,8 @@ function parseContributors(text: string): { list: string[]; error: string | null
     if (seen.has(key)) return { list, error: `Duplicate address: ${a}` };
     seen.add(key);
   }
-  if (list.length !== CONTRIBUTOR_COUNT) {
-    return { list, error: `Enter exactly ${CONTRIBUTOR_COUNT} addresses (you have ${list.length}).` };
+  if (list.length > MAX_CONTRIBUTORS) {
+    return { list, error: `Enter at most ${MAX_CONTRIBUTORS} addresses (you have ${list.length}).` };
   }
   return { list: list.map((a) => getAddress(a)), error: null };
 }
@@ -76,7 +76,9 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   const delayValid = Number.isFinite(delaySeconds) && delaySeconds >= 0;
 
   const contributors = parseContributors(contributorsText);
-  const contributorsReady = contributors.list.length === CONTRIBUTOR_COUNT && contributors.error === null;
+  const contributorCount = contributors.list.length;
+  const contributorsReady =
+    contributorCount >= MIN_CONTRIBUTORS && contributorCount <= MAX_CONTRIBUTORS && contributors.error === null;
   const bucketsReady = bucketWallets.every((a) => isAddress(a) && a.toLowerCase() !== ZERO);
 
   const [leoAddress, setLeoAddress] = useState<string | null>(null);
@@ -181,7 +183,11 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   };
 
   const allDone = authStatus === 'done';
-  const perContributor = (21_000_000 / CONTRIBUTOR_COUNT).toLocaleString(undefined, { maximumFractionDigits: 4 });
+  // Exact wei math, mirroring LEO's constructor: equal shares, remainder to the first wallet.
+  const GENESIS_WEI = 21_000_000n * 10n ** 18n;
+  const shareWei = contributorCount > 0 ? GENESIS_WEI / BigInt(contributorCount) : 0n;
+  const remainderWei = contributorCount > 0 ? GENESIS_WEI - shareWei * BigInt(contributorCount) : 0n;
+  const perContributor = (Number(shareWei / 10n ** 12n) / 1e6).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
   return (
     <div className="space-y-6">
@@ -192,12 +198,12 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
 
       <StepShell number={1} title="Deploy LEO.sol" status={leoStatus}>
         <p className="text-muted">
-          Mints the 21,000,000 LEO genesis allocation at deploy, split equally across {CONTRIBUTOR_COUNT} contributor
-          wallets (≈ {perContributor} LEO each; the first wallet also gets the 3-wei rounding remainder). The deployer
-          receives nothing. Cannot be changed after deployment.
+          Mints the 21,000,000 LEO genesis allocation at deploy, split equally across {MIN_CONTRIBUTORS} to{' '}
+          {MAX_CONTRIBUTORS} contributor wallets. If the split isn't exact, the first wallet also gets the few wei
+          left over. The deployer receives nothing. Cannot be changed after deployment.
         </p>
         <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
-          Contributor wallets ({CONTRIBUTOR_COUNT}, one per line)
+          Contributor wallets ({MIN_CONTRIBUTORS}–{MAX_CONTRIBUTORS}, one per line)
         </label>
         <textarea
           rows={9}
@@ -210,7 +216,12 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         {contributors.error ? (
           <p className="text-xs text-navy mt-1">{contributors.error}</p>
         ) : (
-          contributorsReady && <p className="text-xs text-muted mt-1">{CONTRIBUTOR_COUNT} valid, distinct wallets.</p>
+          contributorsReady && (
+            <p className="text-xs text-muted mt-1">
+              {contributorCount} valid, distinct wallet{contributorCount === 1 ? '' : 's'}: ≈ {perContributor} LEO each
+              {remainderWei > 0n && ` (the first also gets the ${remainderWei.toString()}-wei remainder)`}.
+            </p>
+          )
         )}
         {leoStatus !== 'done' && (
           <button
@@ -229,7 +240,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
       <StepShell number={2} title="Deploy Staking.sol" status={stakingStatus}>
         <p className="text-muted">
           Constructor arguments: LEO address, the halving period, the wallets for the four ecosystem buckets, and
-          the emission delay. Staking opens immediately; <strong>emission starts automatically{' '}
+          the emission delay. Staking opens once Step 3 authorizes it; <strong>emission starts automatically{' '}
           {delayValid ? formatDelay(delaySeconds) : '…'} after this transaction</strong>.
         </p>
         <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">

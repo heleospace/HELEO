@@ -214,7 +214,7 @@ export function Whitepaper() {
           </p>
           <dl className="wp-grid">
             <div className="wp-cell"><dt>Max supply</dt><dd>42,000,000<small>Hard cap, compiled</small></dd></div>
-            <div className="wp-cell"><dt>Genesis</dt><dd>21,000,000<small>Minted at deploy, 9 contributors</small></dd></div>
+            <div className="wp-cell"><dt>Genesis</dt><dd>21,000,000<small>Minted at deploy, 1–21 contributors</small></dd></div>
             <div className="wp-cell"><dt>Emission</dt><dd>21,000,000<small>Halving series, 5 buckets</small></dd></div>
             <div className="wp-cell"><dt>Discretionary</dt><dd>0<small>No other mint path</small></dd></div>
           </dl>
@@ -232,14 +232,16 @@ export function Whitepaper() {
           <h2>21,000,000 LEO to the core contributors</h2>
           <p>
             The token contract mints <strong>21,000,000 LEO</strong> in its constructor, split equally
-            across <strong>nine contributor wallets</strong>: the core developers building the
-            Morpheus ecosystem (mor.org) who are extending that work into HELEO. Each wallet receives
-            ≈ <strong>2,333,333.33 LEO</strong>; the first also receives the 3 wei left over from the
-            integer division, so exactly 21,000,000 is minted.
+            across <strong>1 to 21 contributor wallets</strong>: the core developers building the
+            Morpheus ecosystem (mor.org) who are extending that work into HELEO. With 21 wallets each
+            receives exactly <strong>1,000,000 LEO</strong>; with fewer, each receives 21,000,000 ÷ the
+            number of wallets. When that doesn't divide evenly, the first wallet also receives the few
+            wei left over (at most 13), so exactly 21,000,000 is minted. The number is fixed at
+            deployment and readable on-chain as <code>contributorCount()</code>.
           </p>
           <p>
-            The nine addresses are passed at deployment and checked on-chain: none may be the zero
-            address and none may repeat. The deployer receives nothing. The genesis allocation is
+            The addresses are passed at deployment and checked on-chain: there must be between 1 and
+            21, none may be the zero address and none may repeat. The deployer receives nothing. The genesis allocation is
             unlocked at mint — there is no vesting contract — and this is stated plainly so anyone
             can weigh it.
           </p>
@@ -404,12 +406,13 @@ export function Whitepaper() {
         <div className="wp-rail">
           <b>§ 5</b>
           <span>Fair Start</span>
-          <p className="wp-gloss">Staking opens at deploy; emission waits 24 hours.</p>
+          <p className="wp-gloss">Staking opens at setup; emission waits 24 hours.</p>
         </div>
         <div className="wp-body">
           <h2>A 24-hour window before the first second counts</h2>
           <p>
-            Staking is open from the moment the staking contract is deployed, but emission begins
+            Staking opens as soon as LEO wires in the staking contract (right after it is deployed,
+            and the contract refuses deposits until then), but emission begins
             automatically <strong>24 hours later</strong> (<code>startTime</code> = deployment +{' '}
             <code>emissionDelay</code>). On Ethereum mainnet the contract refuses any delay other than
             exactly 24 hours; only test networks may use a shorter one. Nothing accrues during that window, so everyone who stakes
@@ -519,7 +522,7 @@ export function Whitepaper() {
           </p>
           <p>
             The contracts are immutable, so any defect in them is also immutable — it cannot be
-            patched, paused or rescued. Half the supply is held by nine contributor wallets from the
+            patched, paused or rescued. Half the supply is held by the contributor wallets (1 to 21) from the
             start, and four wallets receive 80% of all emission. Verify the deployed source yourself
             rather than relying on this summary, and participate only if you accept that LEO may be
             worth nothing.

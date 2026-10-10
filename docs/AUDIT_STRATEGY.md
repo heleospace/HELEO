@@ -20,7 +20,7 @@ Reference for every audit of the HELEO contracts. Run it whenever `LEO.sol` or
 |---|---|
 | `Contracts/LEO.sol` | Cap, genesis mint, mint authority |
 | `Contracts/Staking.sol` | Emission schedule, reward index, buckets, staking flows |
-| `Contracts/flattened/*.flat.sol` | Must be byte-equivalent in logic to the sources (Etherscan copies) |
+| `Contracts/flattened/*.flat.sol` | Must compile on its own with solc 0.8.24 and match the sources in logic (Etherscan copies). Regenerate with `scripts/flatten.py`. |
 
 Out of scope: OpenZeppelin and LayerZero libraries (trusted; only their *usage*
 is reviewed), frontend, deploy scripts. `LEOOFT.sol` / `LEOOFTAdapter.sol` are
@@ -44,7 +44,8 @@ worst-case action if that key is compromised.
 
 ### 3. Distribution math
 Compute expected values independently and compare with the contract:
-- Genesis: `21M / 9` each, remainder (wei) to `contributors[0]`, sum exactly 21M.
+- Genesis: for every contributor count 1–21, `21M / n` each, remainder (< n wei)
+  to `contributors[0]`, sum exactly 21M; 0 and 22+ wallets rejected.
 - Halving: epoch 0 emits 10.5M, each later epoch half the previous, 256 epochs,
   cumulative ≤ 21M; quantify rounding dust and where it ends up.
 - `scheduledEmission(t)` is monotonic, continuous at epoch boundaries, and
@@ -71,7 +72,9 @@ suite with at least:
 - `LEO.totalSupply() ≤ MAX_SUPPLY`
 - `emissionMinted + unminted accrued ≤ scheduledEmission(now)`
 - No account withdraws more than deposits + rewards
-Run `forge test`, fuzz with high runs, and `slither` if installed.
+Run `forge test`, fuzz with high runs, and Slither on the flattened files
+(see `audit/REPORT.md` → Reproducing). Triage every Slither result in
+HELEO code as true positive, intentional or false positive.
 A finding without a test is labelled PLAUSIBLE, not CONFIRMED.
 
 ### 6. Report

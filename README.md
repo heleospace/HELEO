@@ -10,9 +10,9 @@ Forked from Algeba.
 | | |
 |---|---|
 | Max supply | 42,000,000 LEO |
-| Genesis | 21,000,000 LEO minted at deploy, split equally across 9 contributor wallets |
+| Genesis | 21,000,000 LEO minted at deploy, split equally across 1–21 contributor wallets (remainder wei to the first) |
 | Emission | 21,000,000 LEO, halving every 4 years (10.5M in the first 4 years) |
-| Emission start | Automatically 24 hours after Staking is deployed (staking is open immediately). Enforced on mainnet; testnets may use a shorter delay, e.g. 5 minutes |
+| Emission start | Automatically 24 hours after Staking is deployed (staking opens once `LEO.setStaking()` wires it in, right after deployment). Enforced on mainnet; testnets may use a shorter delay, e.g. 5 minutes |
 | Emission split | 20% each: Stakers · Builder · Coder · Compute · Research |
 | Idle staker share | Never minted when nobody is staked |
 | Bucket wallets | Set at deploy; each wallet can hand off its own bucket (two-step) |
@@ -48,7 +48,7 @@ forge test
 
 From the `/deploy` page (visible only to `VITE_DEPLOYER_WALLET`):
 
-1. Deploy `LEO` with the 9 contributor wallets.
+1. Deploy `LEO` with 1–21 contributor wallets.
 2. Deploy `Staking` with the halving period (4 years), the Builder, Coder, Compute and Research wallets, and the emission delay (fixed at 24 hours on mainnet; 5 minutes by default on Sepolia). The clock starts here.
 3. Call `LEO.setStaking(staking)` — within 24 hours, before emission starts.
 4. Renounce `LEO` ownership.

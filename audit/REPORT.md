@@ -2,13 +2,13 @@
 
 | | |
 |---|---|
-| **Commit audited** | `2bdbe47299beace75f221b136539b782196dd57a`, plus the M-01 / L-01 fixes (re-verified 2026-10-10) |
+| **Commit audited** | `2bdbe47299beace75f221b136539b782196dd57a`, plus the M-01 / L-01 / L-02 / L-03 fixes and the 1–21 contributor change (re-verified 2026-10-10) |
 | **Date** | 2026-10-10 |
 | **Scope** | `Contracts/LEO.sol`, `Contracts/Staking.sol`, `Contracts/flattened/*.flat.sol` (consistency only) |
 | **Out of scope** | OpenZeppelin / LayerZero libraries (usage reviewed only), `LEOOFT.sol`, `LEOOFTAdapter.sol`, frontend |
-| **Method** | `docs/AUDIT_STRATEGY.md`: six passes, manual review plus Foundry fuzz and invariant testing |
+| **Method** | `docs/AUDIT_STRATEGY.md`: six passes, manual review, Foundry fuzz and invariant testing, Slither 0.11.4 static analysis |
 | **Compiler** | solc 0.8.24, optimizer 200 runs |
-| **Tests** | 103 / 103 passing. Fuzz at 5,000 runs, invariants at 1,000 runs × 500 calls. |
+| **Tests** | 111 / 111 passing. Fuzz at 5,000 runs, invariants at 1,000 runs × 500 calls. |
 
 ## Summary
 
@@ -19,16 +19,18 @@ timing, the supply caps or any reward calculation. All of them are `constant`
 or `immutable`, and the schedule is a pure function of `block.timestamp`.
 
 The issues found were about **deployment-time trust**, not runtime exploits.
-**M-01 and L-01 are now fixed:** mainnet locks both the 24-hour delay and the
-4-year halving period, and `setStaking()` renounces LEO ownership in the same
-transaction.
+**All Medium and Low findings are fixed.** Mainnet locks both the 24-hour
+delay and the 4-year halving period (M-01). `setStaking()` renounces LEO
+ownership in the same transaction (L-01). Staking refuses deposits unless LEO
+points to it (L-02). The flattened Etherscan files compile again (L-03).
+Slither found no real issues.
 
 | Severity | Count |
 |---|---|
 | Critical | 0 |
 | High | 0 |
 | Medium | 1 (fixed) |
-| Low | 2 (1 fixed, 1 open) |
+| Low | 3 (all fixed) |
 | Info | 6 |
 
 ---
@@ -53,9 +55,10 @@ then asserted against the contract.
 
 | Item | Design | Contract result | Status |
 |---|---|---|---|
-| Genesis per contributor (×9) | 21M / 9 | 2,333,333.333333333333333333 LEO each | ✅ exact |
-| Genesis remainder | to `contributors[0]` | +3 wei | ✅ |
-| Genesis total | 21,000,000 | 21,000,000.000000000000000000 | ✅ exact |
+| Genesis wallet count | 1 to 21, distinct and non-zero | 0 and 22+ rejected (`InvalidContributorCount`); count stored as `contributorCount` | ✅ |
+| Genesis per contributor | 21M / n | Exact for every n from 1 to 21 (e.g. 21M at n=1, 1,000,000 each at n=21, 2,333,333.33 at n=9) | ✅ fuzzed |
+| Genesis remainder | to `contributors[0]` | Always < n wei; maximum 13 wei, at n=17 (0 for n = 1–8, 10, 12, 14–16, 20, 21) | ✅ |
+| Genesis total | 21,000,000 | Exactly 21,000,000 for every n | ✅ fuzzed |
 | Emission by end of year 4 (epoch 0) | 50% | 10,500,000 | ✅ exact |
 | Year 8 | 75% | 15,750,000 | ✅ exact |
 | Year 12 | 87.5% | 18,375,000 | ✅ exact |
@@ -73,6 +76,22 @@ Every rounding step rounds down, in the contract's favour. Users can lose at
 most a few wei. The contract can never owe more than it can mint.
 
 ---
+
+## Change re-verified: 1–21 genesis contributors
+
+After the findings below were fixed, the LEO constructor was changed from a
+fixed `address[9]` to `address[]` with 1 to `MAX_CONTRIBUTORS` (21) wallets.
+Re-verification:
+
+- `testFuzz_constructor_splitsExactlyForAnyCount`: every n from 1 to 21 mints
+  exactly 21M, with equal shares and a remainder of less than n wei to the first wallet.
+- 0 and 22 wallets revert, and duplicate and zero-address checks still hold
+  at n = 21.
+- Deploy gas: about 0.89M at n = 1 and about 1.55M at n = 21. The O(n²)
+  duplicate check is bounded at 210 comparisons, so there is no DoS risk.
+- Slither: no new results (same 4 cosmetic or intentional items on LEO).
+- The supply cap, mint permission and Staking are unaffected. All invariants
+  pass at 1,000 runs × 500 calls.
 
 ## Findings
 
@@ -121,9 +140,9 @@ That choice is final and publicly checkable: `LEO.staking()` must equal the
 verified Staking address, `Staking.token()` must equal LEO, and `LEO.owner()`
 must be `0x0`.
 
-### L-02: A Staking contract that LEO isn't wired to still accepts stakes
+### L-02: A Staking contract that LEO isn't wired to still accepts stakes ✅ FIXED
 
-**File:** `Staking.sol:141` · **Status:** CONFIRMED (`test_FINDING_L02_unwiredStakingTrapsRewardsNotPrincipal`)
+**File:** `Staking.sol` `stake` · **Status:** FIXED. Regression tests: `test_FIXED_L02_unwiredStakingRefusesDeposits`, `test_stakingOpensOnlyAfterWiring`
 
 Anyone can deploy another `Staking` pointing at LEO, for example as a
 phishing copy. It accepts deposits, but `claim`, `compound` and any `unstake`
@@ -131,9 +150,29 @@ that carries rewards revert with `OnlyStaking`. Principal can still be
 recovered with `emergencyWithdraw`, so funds are not lost. Users would be
 confused, though, and the rewards are worthless.
 
-**Fix (optional):** in `stake()`, require
-`ILEO(address(token)).staking() == address(this)`. The frontend should also
-show a warning if `leo.staking()` doesn't match the configured Staking address.
+**Fix applied:** `stake()` now reverts with `NotWiredMinter` unless
+`LEO.staking() == address(this)`. A copycat contract can no longer take
+deposits. The canonical contract opens for staking once `setStaking()` runs
+(Step 3 of the deploy flow, well before emission starts). Exits are unchanged
+and never depend on the check.
+
+### L-03: Flattened `Staking.flat.sol` did not compile ✅ FIXED
+
+**File:** `flattened/Staking.flat.sol` · **Status:** FIXED. Found by Slither.
+
+`forge flatten` reached OpenZeppelin's `IERC20.sol` through both a relative
+and an absolute path (because of the `../frontend/node_modules` remapping),
+emitted it twice and renamed the copies `IERC20_0` / `IERC20_1`. The result
+failed to compile, so Etherscan verification with this file would have
+failed. The copy committed before this audit had the same defect. The
+earlier logic comparison didn't catch it, because it never compiled the file.
+The flattened files also embedded absolute paths from the developer's
+machine.
+
+**Fix applied:** `Contracts/scripts/flatten.py` regenerates both files,
+removes duplicate sources, restores the original names and strips local
+paths. Both files now compile with solc 0.8.24 and match their sources
+logic-for-logic.
 
 ### I-01: `emergencyWithdraw` forfeits rewards already settled; `emittedSupply()` still counts them
 
@@ -190,6 +229,25 @@ of tolerance, the same as the stakers' invariant.
 **Optional fix:** round `rewardDebt` up (`Math.mulDiv(..., Rounding.Ceil)`)
 whenever it is reset. Rounding would then always favour the contract.
 
+## Static analysis (Slither 0.11.4)
+
+Slither was run on both flattened contracts with solc 0.8.24, optimizer 200
+runs, all 100 detectors. Of 43 results, 17 are in OpenZeppelin library code
+(out of scope). Triage of the 26 in HELEO's own code:
+
+| Detector | Results | Verdict |
+|---|---|---|
+| `timestamp` | 13 | **By design.** The schedule is defined on `block.timestamp`, and mainnet slot timestamps cannot be shifted by proposers. |
+| `divide-before-multiply` | 5 | **Intentional.** Integer fifths for the five-way split, the carried remainder in `_update`, and the genesis remainder. Covered by `AuditMath.t.sol`. |
+| `incorrect-equality` | 3 | **False positive.** `== 0` checks on internal counters, which a token donation cannot change (`test_donationDoesNotChangeRewards`). |
+| `weak-prng` | 1 | **False positive.** `%` in time arithmetic, not randomness. |
+| `events-maths` | 1 | **False positive.** `_mint` already emits `Transfer`. |
+| `missing-inheritance` | 1 | Cosmetic: LEO could declare `is IStakingSupply`. |
+| `solc-version` | 2 | Flattening artifact from OpenZeppelin pragmas. The build is pinned to 0.8.24. |
+
+**No true positives.** Slither's only real catch was L-03 above, which turned
+up while compiling the flattened files for analysis.
+
 ## Attack catalogue
 
 | Attack | Result | Test |
@@ -204,13 +262,14 @@ whenever it is reset. Rounding would then always favour the contract.
 | 1-wei staker inflating the index to overflow later stakers | Ruled out by `MIN_STAKE` | `test_minStakeCannotBrickWithOverflow` |
 | Leaving a dust position below the minimum | Ruled out | `test_cannotLeaveDustPosition` |
 | Stranger claiming, proposing or accepting a bucket | Ruled out | `testFuzz_strangerCannotTouchBuckets` |
+| Depositing into a copycat Staking contract | Ruled out: deposits refused unless LEO points to it | `test_FIXED_L02_unwiredStakingRefusesDeposits` |
 | Bucket handover paying out twice | Ruled out | `test_bucketHandoverMovesAccruedOnce` |
 | Buckets draining the stakers' share | Ruled out | `test_bucketsCannotStarveStakers` |
 | Earning before emission starts | Ruled out | `test_stakingBeforeStartEarnsNothingEarly` |
 | Exit blocked by the reward path | Ruled out: the emergency exit doesn't touch minting | `invariant_exitsNeverRevert` |
 | Any random sequence creating or losing LEO | Ruled out: every LEO is accounted for | `invariant_conservationOfLEO` |
 | Minting ahead of schedule | Ruled out beyond wei-level rounding (I-06) | `invariant_mintedNeverAheadOfSchedule` |
-| Flattened Etherscan copy differing from source | Ruled out: the logic is identical (only the `IERC20_0` alias the flattener adds differs) | script check |
+| Flattened Etherscan copy differing from source, or not compiling | Ruled out after the L-03 fix: logic identical and compiles with solc 0.8.24 | `scripts/flatten.py` + solc |
 
 ---
 
@@ -228,7 +287,7 @@ whenever it is reset. Rounding would then always favour the contract.
 
 | Function | Grade | Why | Evidence |
 |---|---|---|---|
-| `constructor` | **A** | Genesis split is exact; zero and duplicate wallets rejected | `test_genesisSplitIsExact` |
+| `constructor` | **A** | 1–21 wallets; genesis split exact for every count; zero, duplicate, empty and >21 rejected | `testFuzz_constructor_splitsExactlyForAnyCount`, `test_genesisSplitIsExact` |
 | `setStaking` | **B** | One-shot and renounces ownership. The deployer's single minter choice is final and publicly checkable (L-01 residual). | `test_setStaking_renouncesOwnership`, `test_L01_minterChoiceIsFinalAfterSetStaking` |
 | `mintEmission` | **A** | Only Staking can call; double cap (emission and max supply) | `testFuzz_onlyStakingCanMint`, supply invariants |
 | `remainingEmission` | **A** | Pure arithmetic view | review |
@@ -241,7 +300,7 @@ whenever it is reset. Rounding would then always favour the contract.
 | Function | Grade | Why | Evidence |
 |---|---|---|---|
 | `constructor` | **A** | Delay and halving period both locked on mainnet (M-01 fixed) | `testFuzz_FIXED_M01_mainnetPinsHalvingPeriod`, `test_mainnetForces24hDelay` |
-| `stake` | **A** | Indexes before deposit; enforces `MIN_STAKE` | attack tests, invariants |
+| `stake` | **A** | Indexes before deposit; enforces `MIN_STAKE`; only accepts deposits once wired (L-02 fixed) | attack tests, invariants, `test_stakingOpensOnlyAfterWiring` |
 | `claim` | **A** | Settles, then pays exactly what is owed; no double claim | `testFuzz_soleStakerGetsExactlyOneFifth`, `test_noDoubleClaimAcrossPaths` |
 | `compound` | **A** | Minted straight into the contract; balance always equals `totalStaked` | `invariant_balanceEqualsTotalStaked` |
 | `unstake` | **A** | Proportional reward, rounding down; dust positions blocked | `testFuzz_partialUnstakesNeverOverpay`, invariants |
@@ -269,13 +328,13 @@ whenever it is reset. Rounding would then always favour the contract.
 2. ~~Make the renounce step mandatory (L-01)~~ ✅ done: `setStaking()` renounces automatically. Publish the
    three on-chain checks: `staking()`, `token()`, `owner() == 0`.
 3. Optionally round `rewardDebt` up (I-06).
-4. Optionally add the wiring check to `stake()` (L-02) and a frontend warning.
+4. ~~Add the wiring check to `stake()` (L-02)~~ ✅ done.
 5. Use multisigs for the four bucket recipient wallets.
-6. Regenerate `flattened/*.flat.sol` after any fix and re-run `/audit`.
+6. Regenerate the flattened files with `python3 scripts/flatten.py` after any change, and re-run `/audit`.
 7. Before the bridge launches, give `LEOOFT` / `LEOOFTAdapter` and the
    LayerZero configuration their own review (I-05).
-8. Install Slither (`pip install slither-analyzer`) for a second static-analysis
-   pass. It was not available for this audit.
+8. ~~Run Slither~~ ✅ done: no true positives. Re-run it after any change
+   (see "Reproducing").
 
 ## Reproducing
 
@@ -284,4 +343,12 @@ cd Contracts
 forge test                                    # full suite
 forge test --match-path 'test/audit/*' -vv    # audit tests only
 FOUNDRY_FUZZ_RUNS=5000 FOUNDRY_INVARIANT_RUNS=1000 FOUNDRY_INVARIANT_DEPTH=500 forge test
+
+# Flattened files + Slither (run outside Contracts/ so Slither uses plain solc;
+# its Foundry integration fails on current forge build-info output)
+python3 scripts/flatten.py
+pip install slither-analyzer solc-select && solc-select install 0.8.24 && solc-select use 0.8.24
+mkdir -p /tmp/sl && cp flattened/*.flat.sol /tmp/sl && cd /tmp/sl
+slither Staking.flat.sol --compile-force-framework solc --solc-args "--optimize --optimize-runs 200"
+slither LEO.flat.sol --compile-force-framework solc --solc-args "--optimize --optimize-runs 200"
 ```

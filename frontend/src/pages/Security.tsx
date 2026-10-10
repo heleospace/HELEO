@@ -1,5 +1,5 @@
 // Mirrors audit/REPORT.md (internal review at commit 2bdbe47 plus the M-01 /
-// L-01 fixes). It is not an independent third-party audit, and the page says so plainly.
+// L-01 / L-02 / L-03 fixes). It is not an independent third-party audit, and the page says so plainly.
 
 const ROLES = [
   {
@@ -21,10 +21,10 @@ const ROLES = [
     blastRadius: 'A compromised key can claim or redirect that one bucket only. Use multisigs.',
   },
   {
-    role: 'Contributor wallets (×9)',
+    role: 'Contributor wallets (1–21)',
     holder: 'Core contributors',
     powers: 'Ordinary token holders — no contract privileges.',
-    blastRadius: '≈ 2,333,333 LEO each, fully unlocked.',
+    blastRadius: '21,000,000 ÷ wallet count each (1,000,000 with 21 wallets), fully unlocked.',
   },
   {
     role: 'Bridge delegate',
@@ -40,7 +40,7 @@ const SEVERITY_COUNTS = [
   { label: 'Critical', count: 0, note: '' },
   { label: 'High', count: 0, note: '' },
   { label: 'Medium', count: 1, note: 'fixed' },
-  { label: 'Low', count: 2, note: '1 fixed' },
+  { label: 'Low', count: 3, note: 'all fixed' },
   { label: 'Info', count: 6, note: '' },
 ];
 
@@ -53,8 +53,8 @@ const GOALS = [
 ];
 
 const MATH = [
-  { item: 'Genesis per contributor (×9)', expected: '21M ÷ 9', actual: '2,333,333.333333333333333333 LEO' },
-  { item: 'Genesis remainder', expected: 'to contributor #1', actual: '+3 wei' },
+  { item: 'Genesis per contributor (1–21 wallets)', expected: '21M ÷ wallet count', actual: 'Exact for every count 1–21 (e.g. 1,000,000 LEO each with 21)' },
+  { item: 'Genesis remainder', expected: 'to contributor #1', actual: 'Fewer wei than wallets (max 13 wei, at 17 wallets)' },
   { item: 'Genesis total', expected: '21,000,000', actual: '21,000,000 exactly' },
   { item: 'Emitted by year 4 / 8 / 12 / 16', expected: '50% / 75% / 87.5% / 93.75%', actual: '10.5M / 15.75M / 18.375M / 19.6875M exactly' },
   { item: 'Total emission', expected: '≤ 21,000,000', actual: '21M − 38 wei (halving rounding, never minted)' },
@@ -85,9 +85,17 @@ const FINDINGS = [
     id: 'L-02',
     severity: 'Low',
     title: 'Unwired Staking copies accept deposits',
-    detail: 'A copycat Staking contract accepts stakes but cannot pay rewards. Principal stays recoverable via emergencyWithdraw.',
-    fix: 'Optionally require LEO.staking() == address(this) in stake(); warn in the UI.',
-    status: 'Open',
+    detail: 'A copycat Staking contract accepted stakes but could never pay rewards (principal was still recoverable).',
+    fix: 'stake() now requires LEO.staking() == address(this); copies refuse deposits.',
+    status: 'Fixed',
+  },
+  {
+    id: 'L-03',
+    severity: 'Low',
+    title: 'Flattened Staking.flat.sol did not compile',
+    detail: 'forge flatten duplicated IERC20 through two import paths, so Etherscan verification with this file would fail. Found by Slither.',
+    fix: 'scripts/flatten.py dedupes sources and strips local paths; both files compile and match the sources.',
+    status: 'Fixed',
   },
   { id: 'I-01', severity: 'Info', title: 'emittedSupply() counts rewards forfeited by emergencyWithdraw', detail: 'View-only projection; totalSupply() is unaffected.', fix: '—', status: 'Accepted' },
   { id: 'I-02', severity: 'Info', title: 'Sub-5-wei idle remainder carries to later stakers', detail: 'Wei-level, no practical effect.', fix: '—', status: 'Accepted' },
@@ -113,7 +121,7 @@ const RATINGS = [
   { contract: 'LEO', fn: 'renounce / transferOwnership', grade: 'B', why: 'Standard OpenZeppelin; unreachable once setStaking has run' },
   { contract: 'LEO', fn: 'ERC-20 transfer / approve', grade: 'A', why: 'Unmodified OpenZeppelin 5, no hooks or fees' },
   { contract: 'Staking', fn: 'constructor', grade: 'A', why: 'Delay and halving period both pinned on mainnet (M-01 fixed)' },
-  { contract: 'Staking', fn: 'stake', grade: 'A', why: 'Indexes before deposit; minimum stake enforced' },
+  { contract: 'Staking', fn: 'stake', grade: 'A', why: 'Indexes before deposit; minimum stake; only once wired by LEO (L-02 fixed)' },
   { contract: 'Staking', fn: 'claim', grade: 'A', why: 'Pays exactly what is owed; no double claim' },
   { contract: 'Staking', fn: 'compound', grade: 'A', why: 'Minted into the contract; balance always equals totalStaked' },
   { contract: 'Staking', fn: 'unstake', grade: 'A', why: 'Proportional reward rounded down; no dust positions' },
@@ -129,6 +137,16 @@ const RATINGS = [
   { contract: 'Staking', fn: 'emissionStarted / currentEpoch / currentEmissionPerSecond', grade: 'A', why: 'Simple views over immutables' },
   { contract: 'Staking', fn: 'nextHalvingTime', grade: 'B', why: 'Overflows only with an absurd period (I-03)' },
   { contract: 'Staking', fn: '_update / _settle / _capToMintable', grade: 'A', why: 'Covered by every invariant' },
+];
+
+const SLITHER = [
+  { detector: 'timestamp', count: 13, verdict: 'By design: the schedule is defined on block.timestamp' },
+  { detector: 'divide-before-multiply', count: 5, verdict: 'Intentional integer fifths and remainders; covered by math tests' },
+  { detector: 'incorrect-equality', count: 3, verdict: 'False positive: == 0 on internal counters donations cannot move' },
+  { detector: 'weak-prng', count: 1, verdict: 'False positive: % in time arithmetic, not randomness' },
+  { detector: 'events-maths', count: 1, verdict: 'False positive: _mint already emits Transfer' },
+  { detector: 'missing-inheritance', count: 1, verdict: 'Cosmetic' },
+  { detector: 'solc-version', count: 2, verdict: 'Flattening artifact; build pinned to 0.8.24' },
 ];
 
 const GRADE_SCALE = [
@@ -154,12 +172,12 @@ function Th({ children, right = false }: { children: React.ReactNode; right?: bo
 }
 
 const TESTS = [
-  { suite: 'LEO.t.sol', count: 15, covers: 'Equal 9-way genesis mint and remainder, zero/duplicate rejection, one-time setStaking, emission cap, fuzzed cap checks' },
+  { suite: 'LEO.t.sol', count: 22, covers: 'Equal genesis split for every count 1–21 (fuzzed) and remainder, 0 and 22 wallets rejected, zero/duplicate rejection, one-time setStaking, emission cap, fuzzed cap checks' },
   { suite: 'Staking.t.sol', count: 54, covers: 'Start delay and halving period (pinned on mainnet, shorter allowed on testnet), five-way split, forfeited staker share, bucket claims and two-step hand-off, stake/claim/compound/unstake, minimum stake, dust attack, emergency exit, halving schedule' },
   { suite: 'StakingInvariant.t.sol', count: 1, covers: 'Stateful fuzzing (incl. bucket claims): totals match, solvency, five-way split never exceeds schedule, caps hold, exits never revert' },
   { suite: 'StakingEndOfLife.t.sol', count: 1, covers: '40 full-lifetime scenarios with all buckets claiming: every staker can always fully exit' },
   { suite: 'audit/AuditMath.t.sol', count: 10, covers: 'Exact genesis split, epoch cumulatives, 38-wei schedule dust, monotonic and continuous schedule, exact 1/5 split, full 100-epoch lifecycle' },
-  { suite: 'audit/AuditAccess.t.sol', count: 9, covers: 'Only Staking can mint, setStaking one-shot and ownerless, mainnet delay and halving pinned, schedule independent of state, M-01 / L-01 regressions, L-02 proof' },
+  { suite: 'audit/AuditAccess.t.sol', count: 10, covers: 'Only Staking can mint, setStaking one-shot and ownerless, mainnet delay and halving pinned, schedule independent of state, staking opens only once wired, M-01 / L-01 / L-02 regressions' },
   { suite: 'audit/AuditAttacks.t.sol', count: 12, covers: 'Just-in-time staking, double claims, partial-unstake rounding, donations, dust/overflow, bucket hijack and hand-off, buckets vs stakers' },
   { suite: 'audit/AuditInvariant.t.sol', count: 1, covers: 'Stateful fuzzing: every LEO accounted for, balance equals totalStaked, supply = genesis + emission, never ahead of schedule' },
 ];
@@ -175,7 +193,8 @@ export function Security() {
       <div className="space-y-6 py-2.5 px-2">
         <div className="alert alert-primary mb-0">
           <strong>Internal security review completed</strong> (commit <code className="font-mono">{AUDIT_COMMIT}</code>):
-          no Critical or High findings, and the Medium (M-01) and first Low (L-01) are fixed. Nobody can steal staked
+          no Critical or High findings, every Medium and Low finding is fixed, and Slither static analysis found no
+          real issues. Nobody can steal staked
           funds, mint above the 42,000,000 cap, or change the emission schedule after deployment. This was an internal
           review, <strong>not an independent third-party audit</strong>. Full report:{' '}
           <code className="font-mono">audit/REPORT.md</code>.
@@ -368,11 +387,43 @@ export function Security() {
 
         <div className="card">
           <div className="card-header">
+            <h2 className="text-lg font-bold mb-0">Static analysis (Slither)</h2>
+          </div>
+          <div className="card-body">
+            <p className="text-sm text-muted mb-4">
+              Slither 0.11.4, all 100 detectors, on both flattened contracts. Of 43 results, 17 are in OpenZeppelin
+              library code. All 26 in HELEO code were triaged: <strong className="text-navy">no true positives</strong>.
+            </p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr>
+                    <Th>Detector</Th>
+                    <Th right>Results</Th>
+                    <Th>Verdict</Th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {SLITHER.map((r) => (
+                    <tr key={r.detector}>
+                      <td className="px-4 py-2 font-mono font-semibold text-navy">{r.detector}</td>
+                      <td className="px-4 py-2 text-right tabular-nums">{r.count}</td>
+                      <td className="px-4 py-2 text-muted">{r.verdict}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-header">
             <h2 className="text-lg font-bold mb-0">Test suite</h2>
           </div>
           <div className="card-body">
             <p className="text-sm text-muted mb-4">
-              103 Foundry tests, all passing (fuzzed at 5,000 runs; invariants at 1,000 runs × 500 calls). Run them yourself with <code className="bg-surface px-1 rounded-sm">forge test</code> in
+              111 Foundry tests, all passing (fuzzed at 5,000 runs; invariants at 1,000 runs × 500 calls). Run them yourself with <code className="bg-surface px-1 rounded-sm">forge test</code> in
               the <code className="bg-surface px-1 rounded-sm">Contracts/</code> folder.
             </p>
             <div className="overflow-x-auto">
@@ -407,7 +458,7 @@ export function Security() {
               <li>Independent third-party audit of LEO.sol and Staking.sol.</li>
               <li>Bug bounty program live before or at launch.</li>
               <li>Full rehearsal on Sepolia (5-minute emission delay is fine there): deploy, stake, claim every bucket, test a bucket hand-off.</li>
-              <li>The 9 contributor wallets and 4 bucket wallets confirmed in writing; bucket wallets should be multisigs.</li>
+              <li>The contributor wallets (1–21) and 4 bucket wallets confirmed in writing; bucket wallets should be multisigs.</li>
               <li>setStaking() called within the emission delay of deploying Staking (24 hours on mainnet), before emission starts. It renounces LEO ownership automatically; confirm owner() is 0x0.</li>
               <li>LEOOFT / LEOOFTAdapter delegate moved to a multisig before any bridge use.</li>
             </ul>

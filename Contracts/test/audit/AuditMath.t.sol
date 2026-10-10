@@ -16,12 +16,12 @@ contract AuditMathTest is Test {
 
     LEO leo;
     Staking staking;
-    address[9] contributors;
+    address[] contributors;
     address[4] recipients = [address(0xB1), address(0xC0), address(0xC1), address(0xE5)];
     uint256 start;
 
     function setUp() public {
-        for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0x9000 + i));
+        for (uint256 i = 0; i < 9; i++) contributors.push(address(uint160(0x9000 + i)));
         leo = new LEO(contributors);
         staking = new Staking(address(leo), P, recipients, 24 hours);
         leo.setStaking(address(staking));

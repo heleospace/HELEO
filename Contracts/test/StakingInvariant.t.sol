@@ -110,7 +110,7 @@ contract StakingInvariantTest is Test {
     address[] actors;
 
     function setUp() public {
-        address[9] memory contributors;
+        address[] memory contributors = new address[](9);
         for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0x9000 + i));
         leo = new LEO(contributors);
         for (uint256 i = 0; i < 5; i++) actors.push(contributors[i]);

@@ -10,11 +10,11 @@ import {Staking} from "../../Staking.sol";
 contract AuditAccessTest is Test {
     LEO leo;
     Staking staking;
-    address[9] contributors;
+    address[] contributors;
     address[4] recipients = [address(0xB1), address(0xC0), address(0xC1), address(0xE5)];
 
     function setUp() public {
-        for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0x9000 + i));
+        for (uint256 i = 0; i < 9; i++) contributors.push(address(uint160(0x9000 + i)));
         leo = new LEO(contributors);
         staking = new Staking(address(leo), 126_230_400, recipients, 24 hours);
         leo.setStaking(address(staking));
@@ -95,21 +95,33 @@ contract AuditAccessTest is Test {
         l.setStaking(address(0xCAFE));
     }
 
-    /// FINDING L-02: a Staking contract that LEO is not wired to accepts stakes,
-    /// but any exit carrying rewards reverts. Principal is still recoverable via
-    /// emergencyWithdraw.
-    function test_FINDING_L02_unwiredStakingTrapsRewardsNotPrincipal() public {
+    /// L-02 fix: a Staking contract that LEO is not wired to refuses deposits,
+    /// so a copycat can never trap funds behind rewards it cannot pay.
+    function test_FIXED_L02_unwiredStakingRefusesDeposits() public {
         Staking impostor = new Staking(address(leo), 126_230_400, recipients, 24 hours);
         address user = contributors[3];
         uint256 bal = leo.balanceOf(user);
         vm.startPrank(user);
         leo.approve(address(impostor), 10 ether);
+        vm.expectRevert(Staking.NotWiredMinter.selector);
         impostor.stake(10 ether);
-        vm.warp(impostor.startTime() + 1 days);
-        vm.expectRevert(LEO.OnlyStaking.selector);
-        impostor.unstake(10 ether);
-        impostor.emergencyWithdraw();
         vm.stopPrank();
         assertEq(leo.balanceOf(user), bal);
+    }
+
+    /// The canonical contract only opens once setStaking() has wired it.
+    function test_stakingOpensOnlyAfterWiring() public {
+        LEO l = new LEO(contributors);
+        Staking s = new Staking(address(l), 126_230_400, recipients, 24 hours);
+        vm.startPrank(contributors[3]);
+        l.approve(address(s), 10 ether);
+        vm.expectRevert(Staking.NotWiredMinter.selector);
+        s.stake(10 ether);
+        vm.stopPrank();
+
+        l.setStaking(address(s));
+        vm.prank(contributors[3]);
+        s.stake(10 ether);
+        assertEq(s.totalStaked(), 10 ether);
     }
 }

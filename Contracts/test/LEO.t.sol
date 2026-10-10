@@ -7,11 +7,11 @@ import {LEO} from "../LEO.sol";
 
 contract LEOTest is Test {
     LEO leo;
-    address[9] contributors;
+    address[] contributors;
     address staking = address(0x5747);
 
     function setUp() public {
-        for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0x1000 + i));
+        for (uint256 i = 0; i < 9; i++) contributors.push(address(uint160(0x1000 + i)));
         leo = new LEO(contributors);
     }
 
@@ -30,13 +30,73 @@ contract LEOTest is Test {
         for (uint256 i = 1; i < 9; i++) assertEq(leo.balanceOf(contributors[i]), share);
     }
 
+    function _wallets(uint256 n) internal pure returns (address[] memory w) {
+        w = new address[](n);
+        for (uint256 i = 0; i < n; i++) w[i] = address(uint160(0x5000 + i));
+    }
+
+    function test_constructor_recordsContributorCount() public view {
+        assertEq(leo.contributorCount(), 9);
+        assertEq(leo.MAX_CONTRIBUTORS(), 21);
+    }
+
+    /// Any count from 1 to 21: every wallet gets an equal share, the first also
+    /// gets the remainder (fewer wei than wallets), and exactly 21M is minted.
+    function testFuzz_constructor_splitsExactlyForAnyCount(uint256 n) public {
+        n = bound(n, 1, 21);
+        address[] memory w = _wallets(n);
+        LEO l = new LEO(w);
+        uint256 share = l.GENESIS_ALLOCATION() / n;
+        uint256 remainder = l.GENESIS_ALLOCATION() - share * n;
+        assertLt(remainder, n);
+        assertEq(l.contributorCount(), n);
+        assertEq(l.balanceOf(w[0]), share + remainder);
+        uint256 sum = l.balanceOf(w[0]);
+        for (uint256 i = 1; i < n; i++) {
+            assertEq(l.balanceOf(w[i]), share);
+            sum += l.balanceOf(w[i]);
+        }
+        assertEq(sum, l.GENESIS_ALLOCATION());
+        assertEq(l.totalSupply(), l.GENESIS_ALLOCATION());
+    }
+
+    function test_constructor_singleContributorGetsAll() public {
+        address[] memory w = _wallets(1);
+        LEO l = new LEO(w);
+        assertEq(l.balanceOf(w[0]), 21_000_000 ether);
+    }
+
+    function test_constructor_twentyOneContributorsGetOneMillionEach() public {
+        address[] memory w = _wallets(21);
+        LEO l = new LEO(w);
+        for (uint256 i = 0; i < 21; i++) assertEq(l.balanceOf(w[i]), 1_000_000 ether);
+    }
+
+    function test_constructor_revertsOnZeroContributors() public {
+        vm.expectRevert(LEO.InvalidContributorCount.selector);
+        new LEO(new address[](0));
+    }
+
+    function test_constructor_revertsOnMoreThanTwentyOne() public {
+        address[] memory w = _wallets(22);
+        vm.expectRevert(LEO.InvalidContributorCount.selector);
+        new LEO(w);
+    }
+
+    function test_constructor_revertsOnDuplicateAtLastOfTwentyOne() public {
+        address[] memory w = _wallets(21);
+        w[20] = w[0];
+        vm.expectRevert(LEO.DuplicateContributor.selector);
+        new LEO(w);
+    }
+
     function test_constructor_deployerReceivesNothing() public view {
         assertEq(leo.balanceOf(address(this)), 0);
     }
 
     function test_constructor_revertsOnZeroContributor() public {
         for (uint256 i = 0; i < 9; i++) {
-            address[9] memory c = contributors;
+            address[] memory c = contributors;
             c[i] = address(0);
             vm.expectRevert(LEO.InvalidAddress.selector);
             new LEO(c);
@@ -44,7 +104,7 @@ contract LEOTest is Test {
     }
 
     function test_constructor_revertsOnDuplicateContributor() public {
-        address[9] memory c = contributors;
+        address[] memory c = contributors;
         c[8] = c[3];
         vm.expectRevert(LEO.DuplicateContributor.selector);
         new LEO(c);

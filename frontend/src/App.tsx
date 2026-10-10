@@ -75,7 +75,7 @@ function Layout() {
               <div>
                 <h3 className="font-bold mb-4 text-sm uppercase tracking-wide">Supply</h3>
                 <ul className="space-y-2">
-                  <li className="text-sm text-muted">Genesis: 21,000,000 LEO (9 contributors)</li>
+                  <li className="text-sm text-muted">Genesis: 21,000,000 LEO (1–21 contributors)</li>
                   <li className="text-sm text-muted">Emission: 21,000,000 LEO (5 buckets)</li>
                   <li className="text-sm text-muted">Max: 42,000,000 LEO</li>
                 </ul>

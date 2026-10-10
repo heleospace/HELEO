@@ -14,7 +14,7 @@ contract StakingTest is Test {
     uint256 constant HALVING_PERIOD = 1000;
     uint256 constant FIVE = 5;
 
-    address[9] contributors;
+    address[] contributors;
     address alice;
     address bob;
     address builder = address(0xB1);
@@ -23,7 +23,7 @@ contract StakingTest is Test {
     address research = address(0xE5);
 
     function setUp() public {
-        for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0x1000 + i));
+        for (uint256 i = 0; i < 9; i++) contributors.push(address(uint160(0x1000 + i)));
         alice = contributors[0];
         bob = contributors[1];
         leo = new LEO(contributors);

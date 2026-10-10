@@ -8,10 +8,12 @@ import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol
 interface ILEOEmission {
     function mintEmission(address to, uint256 amount) external;
     function remainingEmission() external view returns (uint256);
+    function staking() external view returns (address);
 }
 
 /// @notice Permissionless HELEO staking plus the four ecosystem buckets.
-/// Staking is open from deployment; emission starts automatically emissionDelay
+/// Staking opens once LEO wires this contract as its minter (setStaking, done
+/// right after deployment); emission starts automatically emissionDelay
 /// after deployment, so early stakers all start on equal footing. On Ethereum
 /// mainnet the delay is enforced to be exactly MAINNET_EMISSION_DELAY (24 hours)
 /// and the halving period exactly MAINNET_HALVING_PERIOD (4 years); testnets may
@@ -114,6 +116,7 @@ contract Staking is ReentrancyGuard {
     error NotBucketRecipient();
     error NotPendingRecipient();
     error InvalidEmissionDelay();
+    error NotWiredMinter();
 
     /// @param halvingPeriod_ Seconds per halving epoch. Must be exactly
     ///        MAINNET_HALVING_PERIOD (4 years = 126_230_400) on Ethereum mainnet.
@@ -143,8 +146,12 @@ contract Staking is ReentrancyGuard {
     // Staking
     // ---------------------------------------------------------------------
 
+    /// @dev Only accepts deposits once LEO has wired this contract as its minter
+    /// (LEO.staking() == this). A copy of Staking that LEO does not point to
+    /// could never pay rewards, so it refuses stakes instead of trapping them.
     function stake(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
+        if (rewardToken.staking() != address(this)) revert NotWiredMinter();
         UserInfo storage u = users[msg.sender];
         if (u.amount + amount < MIN_STAKE) revert BelowMinimumStake();
 

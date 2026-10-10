@@ -22,11 +22,13 @@ export const SUPPORTED_CHAINS = [
 // Contract constants — these mirror the compiled constants in LEO.sol /
 // Staking.sol.
 export const MAX_SUPPLY = '42000000'; // 42M LEO
-export const GENESIS_ALLOCATION = '21000000'; // minted at deploy to the 9 contributor wallets
+export const GENESIS_ALLOCATION = '21000000'; // minted at deploy, split equally across the contributor wallets
 export const EMISSION_ALLOCATION = '21000000'; // released by the halving schedule
 export const FIRST_EPOCH_EMISSION = '10500000'; // EMISSION_ALLOCATION / 2
 export const TOTAL_EMISSION = '21000000'; // matches EMISSION_ALLOCATION
 export const BUCKET_COUNT = 5; // stakers + Builder + Coder + Compute + Research
 export const EMISSION_DELAY_SECONDS = 24 * 60 * 60; // mainnet: emission starts exactly 24h after deploy
 export const TESTNET_EMISSION_DELAY_SECONDS = 5 * 60; // Sepolia default for quick test runs
-export const CONTRIBUTOR_COUNT = 9;
+// LEO's constructor accepts 1 to MAX_CONTRIBUTORS genesis wallets.
+export const MIN_CONTRIBUTORS = 1;
+export const MAX_CONTRIBUTORS = 21;

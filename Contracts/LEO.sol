@@ -10,37 +10,45 @@ interface IStakingSupply {
 
 /// @notice HELEO (LEO) fixed-cap token.
 /// The 21,000,000 LEO genesis allocation is minted at deploy, split equally across
-/// the 9 contributor wallets. The other 21,000,000 LEO (EMISSION_ALLOCATION) can
+/// 1 to 21 contributor wallets. The other 21,000,000 LEO (EMISSION_ALLOCATION) can
 /// only be minted by the Staking contract over the halving schedule. No public mint
 /// exists.
 contract LEO is ERC20, Ownable {
     uint256 public constant MAX_SUPPLY = 42_000_000 ether;
     uint256 public constant GENESIS_ALLOCATION = 21_000_000 ether;
     uint256 public constant EMISSION_ALLOCATION = 21_000_000 ether;
-    uint256 public constant CONTRIBUTOR_COUNT = 9;
+    uint256 public constant MAX_CONTRIBUTORS = 21;
+
+    /// @notice Number of genesis contributor wallets (1 to MAX_CONTRIBUTORS).
+    uint256 public immutable contributorCount;
 
     address public staking;
     uint256 public emissionMinted;
 
     error InvalidAddress();
+    error InvalidContributorCount();
     error DuplicateContributor();
     error StakingAlreadySet();
     error OnlyStaking();
     error CapExceeded();
 
-    /// @param contributors The 9 contributor wallets. Each receives
-    /// GENESIS_ALLOCATION / 9; the 3 wei of integer-division remainder go to
+    /// @param contributors 1 to MAX_CONTRIBUTORS distinct, non-zero wallets. Each
+    /// receives GENESIS_ALLOCATION / contributors.length; the integer-division
+    /// remainder (fewer wei than there are contributors, at most 13) goes to
     /// contributors[0] so exactly GENESIS_ALLOCATION is minted.
-    constructor(address[9] memory contributors) ERC20("HELEO", "LEO") Ownable(msg.sender) {
-        uint256 share = GENESIS_ALLOCATION / CONTRIBUTOR_COUNT;
-        for (uint256 i = 0; i < CONTRIBUTOR_COUNT; ++i) {
+    constructor(address[] memory contributors) ERC20("HELEO", "LEO") Ownable(msg.sender) {
+        uint256 count = contributors.length;
+        if (count == 0 || count > MAX_CONTRIBUTORS) revert InvalidContributorCount();
+        contributorCount = count;
+        uint256 share = GENESIS_ALLOCATION / count;
+        for (uint256 i = 0; i < count; ++i) {
             if (contributors[i] == address(0)) revert InvalidAddress();
             for (uint256 j = 0; j < i; ++j) {
                 if (contributors[j] == contributors[i]) revert DuplicateContributor();
             }
             _mint(contributors[i], share);
         }
-        _mint(contributors[0], GENESIS_ALLOCATION - share * CONTRIBUTOR_COUNT);
+        _mint(contributors[0], GENESIS_ALLOCATION - share * count);
     }
 
     /// @dev One-time, irreversible wiring — there is no way to change `staking`

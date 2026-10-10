@@ -16,7 +16,7 @@ contract StakingEndOfLifeTest is Test {
     address[4] recipients = [address(0xB1), address(0xC0), address(0xC1), address(0xE5)];
 
     function _deploy() internal returns (LEO leo, Staking staking) {
-        address[9] memory contributors;
+        address[] memory contributors = new address[](9);
         for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0xA000 + i));
         if (users.length == 0) for (uint256 i = 0; i < 5; i++) users.push(contributors[i]);
         leo = new LEO(contributors);
