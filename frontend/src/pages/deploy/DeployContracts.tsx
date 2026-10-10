@@ -1,16 +1,15 @@
 import { useState, useEffect } from 'react';
-import { createWalletClient, custom, parseEther, isAddress, isHex } from 'viem';
-import ALGEBAArtifact from '../../contracts-artifacts/ALGEBA.json';
-import GenesisArtifact from '../../contracts-artifacts/Genesis.json';
+import { createWalletClient, custom, isAddress, getAddress } from 'viem';
+import LEOArtifact from '../../contracts-artifacts/LEO.json';
 import StakingArtifact from '../../contracts-artifacts/Staking.json';
 import { StepShell, CopyButton, AddressCard, TxLine, type StepStatus } from './shared';
-import { WhitelistBuilder } from './WhitelistBuilder';
 import { useNetwork } from '../../context/NetworkContext';
 import { ensureChain } from '../../utils/chainSwitch';
 import { createNetworkPublicClient } from '../../utils/publicClient';
+import { BUCKETS } from '../../config/contracts';
+import { CONTRIBUTOR_COUNT } from '../../config/constants';
 
-// Must match GENESIS_ALLOCATION in ALGEBA.sol / Genesis.sol (currently 50 ether, testnet value)
-const GENESIS_ALLOCATION_AGB = '50';
+const ZERO = '0x0000000000000000000000000000000000000000';
 
 // Staking's halving period is in seconds (block.timestamp based). A year here is
 // 365.25 days, so 4 years = 126,230,400 seconds exactly.
@@ -32,55 +31,49 @@ function formatHalvingPreview(years: string): string | null {
   return `${seconds.toLocaleString()} seconds (≈ ${human}) per halving epoch`;
 }
 
-// Genesis.sol takes its duration in seconds (block.timestamp based). The input
-// is in minutes: 1440 = 24 hours; decimals allowed for short test windows.
-function minutesToSeconds(minutes: string): number {
-  return Math.round(parseFloat(minutes) * 60);
-}
-
-function formatDurationPreview(minutes: string): string | null {
-  const seconds = minutesToSeconds(minutes);
-  if (!Number.isFinite(seconds) || seconds <= 0) return null;
-  if (seconds < 60) return `≈ ${seconds} seconds`;
-  if (seconds < 3600) return `≈ ${(seconds / 60).toFixed(1)} minutes`;
-  const totalHours = seconds / 3600;
-  if (totalHours < 48) return `≈ ${totalHours.toFixed(2)} hours`;
-  const days = totalHours / 24;
-  if (days < 90) return `≈ ${days.toFixed(1)} days`;
-  const years = days / 365.25;
-  if (years < 1) return `≈ ${days.toFixed(0)} days (~${(days / 30.44).toFixed(1)} months)`;
-  return `≈ ${years.toFixed(2)} years`;
+// One address per line (commas also accepted). Returns the parsed list plus the
+// first problem found, mirroring LEO's constructor checks: exactly 9, non-zero,
+// no duplicates.
+function parseContributors(text: string): { list: string[]; error: string | null } {
+  const list = text.split(/[\s,]+/).map((a) => a.trim()).filter(Boolean);
+  if (list.length === 0) return { list, error: null };
+  const bad = list.find((a) => !isAddress(a));
+  if (bad) return { list, error: `Not a valid address: ${bad}` };
+  if (list.some((a) => a.toLowerCase() === ZERO)) return { list, error: 'The zero address is not allowed.' };
+  const seen = new Set<string>();
+  for (const a of list) {
+    const key = a.toLowerCase();
+    if (seen.has(key)) return { list, error: `Duplicate address: ${a}` };
+    seen.add(key);
+  }
+  if (list.length !== CONTRIBUTOR_COUNT) {
+    return { list, error: `Enter exactly ${CONTRIBUTOR_COUNT} addresses (you have ${list.length}).` };
+  }
+  return { list: list.map((a) => getAddress(a)), error: null };
 }
 
 export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   const { network } = useNetwork();
   const publicClient = createNetworkPublicClient(network);
 
-  const [initialHolder, setInitialHolder] = useState(walletAddress || '');
-  const [genesisDurationMinutes, setGenesisDurationMinutes] = useState('1440');
+  const [contributorsText, setContributorsText] = useState('');
   const [halvingYears, setHalvingYears] = useState('4');
-  const [merkleRoot, setMerkleRoot] = useState('');
+  const [bucketWallets, setBucketWallets] = useState<string[]>(['', '', '', '']);
 
-  const isValidMerkleRoot = (root: string) => isHex(root) && root.length === 66;
+  const contributors = parseContributors(contributorsText);
+  const contributorsReady = contributors.list.length === CONTRIBUTOR_COUNT && contributors.error === null;
+  const bucketsReady = bucketWallets.every((a) => isAddress(a) && a.toLowerCase() !== ZERO);
 
-  const [algebaAddress, setAlgebaAddress] = useState<string | null>(null);
-  const [algebaTx, setAlgebaTx] = useState<string | null>(null);
-  const [algebaStatus, setAlgebaStatus] = useState<StepStatus>('active');
-  const [algebaError, setAlgebaError] = useState<string | null>(null);
-
-  const [genesisAddress, setGenesisAddress] = useState<string | null>(null);
-  const [genesisTx, setGenesisTx] = useState<string | null>(null);
-  const [genesisStatus, setGenesisStatus] = useState<StepStatus>('locked');
-  const [genesisError, setGenesisError] = useState<string | null>(null);
-
-  const [fundTx, setFundTx] = useState<string | null>(null);
-  const [fundStatus, setFundStatus] = useState<StepStatus>('locked');
-  const [fundError, setFundError] = useState<string | null>(null);
+  const [leoAddress, setLeoAddress] = useState<string | null>(null);
+  const [leoTx, setLeoTx] = useState<string | null>(null);
+  const [leoStatus, setLeoStatus] = useState<StepStatus>('active');
+  const [leoError, setLeoError] = useState<string | null>(null);
 
   const [stakingAddress, setStakingAddress] = useState<string | null>(null);
   const [stakingTx, setStakingTx] = useState<string | null>(null);
   const [stakingStatus, setStakingStatus] = useState<StepStatus>('locked');
   const [stakingError, setStakingError] = useState<string | null>(null);
+  const [emissionStart, setEmissionStart] = useState<bigint | null>(null);
 
   const [authTx, setAuthTx] = useState<string | null>(null);
   const [authStatus, setAuthStatus] = useState<StepStatus>('locked');
@@ -97,7 +90,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
 
   // Defaults to whatever Step 1 deployed this session; falls back to manual
   // entry so this step works standalone for a contract deployed earlier.
-  const renounceTargetAddress = renounceAddressInput || algebaAddress || '';
+  const renounceTargetAddress = renounceAddressInput || leoAddress || '';
 
   useEffect(() => {
     if (!isAddress(renounceTargetAddress)) {
@@ -111,7 +104,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
     publicClient
       .readContract({
         address: renounceTargetAddress as `0x${string}`,
-        abi: ALGEBAArtifact.abi,
+        abi: LEOArtifact.abi,
         functionName: 'owner',
       })
       .then((result) => {
@@ -120,7 +113,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
       .catch(() => {
         if (!cancelled) {
           setRenounceOwner(null);
-          setRenounceOwnerError('Could not read owner() — is this an ALGEBA contract on the selected network?');
+          setRenounceOwnerError('Could not read owner() — is this a LEO contract on the selected network?');
         }
       })
       .finally(() => {
@@ -138,85 +131,34 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
     return createWalletClient({ chain: network.chain, transport: custom(window.ethereum) });
   };
 
-  const deployAlgeba = async () => {
-    if (!walletAddress || !isAddress(initialHolder)) return;
-    setAlgebaStatus('pending');
-    setAlgebaError(null);
+  const deployLeo = async () => {
+    if (!walletAddress || !contributorsReady) return;
+    setLeoStatus('pending');
+    setLeoError(null);
     try {
       const walletClient = await getWalletClient();
       const hash = await walletClient.deployContract({
         account: walletAddress as `0x${string}`,
-        abi: ALGEBAArtifact.abi,
-        bytecode: ALGEBAArtifact.bytecode as `0x${string}`,
-        args: [initialHolder],
+        abi: LEOArtifact.abi,
+        bytecode: LEOArtifact.bytecode as `0x${string}`,
+        args: [contributors.list],
       });
-      setAlgebaTx(hash);
+      setLeoTx(hash);
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (!receipt.contractAddress) throw new Error('No contract address in receipt');
-      setAlgebaAddress(receipt.contractAddress);
-      setAlgebaStatus('done');
-      setGenesisStatus('active');
-    } catch (err) {
-      console.error('ALGEBA deploy failed:', err);
-      setAlgebaError(err instanceof Error ? err.message : 'Deployment failed');
-      setAlgebaStatus('error');
-    }
-  };
-
-  const deployGenesis = async () => {
-    if (!walletAddress || !algebaAddress || !isValidMerkleRoot(merkleRoot)) return;
-    const durationSeconds = minutesToSeconds(genesisDurationMinutes);
-    if (!Number.isFinite(durationSeconds) || durationSeconds <= 0) return;
-    setGenesisStatus('pending');
-    setGenesisError(null);
-    try {
-      const walletClient = await getWalletClient();
-      const hash = await walletClient.deployContract({
-        account: walletAddress as `0x${string}`,
-        abi: GenesisArtifact.abi,
-        bytecode: GenesisArtifact.bytecode as `0x${string}`,
-        args: [algebaAddress, BigInt(durationSeconds), merkleRoot as `0x${string}`],
-      });
-      setGenesisTx(hash);
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-      if (!receipt.contractAddress) throw new Error('No contract address in receipt');
-      setGenesisAddress(receipt.contractAddress);
-      setGenesisStatus('done');
-      setFundStatus('active');
-    } catch (err) {
-      console.error('Genesis deploy failed:', err);
-      setGenesisError(err instanceof Error ? err.message : 'Deployment failed');
-      setGenesisStatus('error');
-    }
-  };
-
-  const fundGenesis = async () => {
-    if (!walletAddress || !algebaAddress || !genesisAddress) return;
-    setFundStatus('pending');
-    setFundError(null);
-    try {
-      const walletClient = await getWalletClient();
-      const hash = await walletClient.writeContract({
-        account: walletAddress as `0x${string}`,
-        address: algebaAddress as `0x${string}`,
-        abi: ALGEBAArtifact.abi,
-        functionName: 'transfer',
-        args: [genesisAddress, parseEther(GENESIS_ALLOCATION_AGB)],
-      });
-      setFundTx(hash);
-      await publicClient.waitForTransactionReceipt({ hash });
-      setFundStatus('done');
+      setLeoAddress(receipt.contractAddress);
+      setLeoStatus('done');
       setStakingStatus('active');
     } catch (err) {
-      console.error('Funding Genesis failed:', err);
-      setFundError(err instanceof Error ? err.message : 'Transfer failed');
-      setFundStatus('error');
+      console.error('LEO deploy failed:', err);
+      setLeoError(err instanceof Error ? err.message : 'Deployment failed');
+      setLeoStatus('error');
     }
   };
 
   const deployStaking = async () => {
     const halvingSeconds = yearsToSeconds(halvingYears);
-    if (!walletAddress || !algebaAddress || !genesisAddress || !Number.isFinite(halvingSeconds) || halvingSeconds <= 0) return;
+    if (!walletAddress || !leoAddress || !bucketsReady || !Number.isFinite(halvingSeconds) || halvingSeconds <= 0) return;
     setStakingStatus('pending');
     setStakingError(null);
     try {
@@ -225,12 +167,18 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         account: walletAddress as `0x${string}`,
         abi: StakingArtifact.abi,
         bytecode: StakingArtifact.bytecode as `0x${string}`,
-        args: [algebaAddress, genesisAddress, BigInt(halvingSeconds)],
+        args: [leoAddress, BigInt(halvingSeconds), bucketWallets.map((a) => getAddress(a))],
       });
       setStakingTx(hash);
       const receipt = await publicClient.waitForTransactionReceipt({ hash });
       if (!receipt.contractAddress) throw new Error('No contract address in receipt');
       setStakingAddress(receipt.contractAddress);
+      const start = await publicClient.readContract({
+        address: receipt.contractAddress,
+        abi: StakingArtifact.abi,
+        functionName: 'startTime',
+      });
+      setEmissionStart(start as bigint);
       setStakingStatus('done');
       setAuthStatus('active');
     } catch (err) {
@@ -241,15 +189,15 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   };
 
   const authorizeStaking = async () => {
-    if (!walletAddress || !algebaAddress || !stakingAddress) return;
+    if (!walletAddress || !leoAddress || !stakingAddress) return;
     setAuthStatus('pending');
     setAuthError(null);
     try {
       const walletClient = await getWalletClient();
       const hash = await walletClient.writeContract({
         account: walletAddress as `0x${string}`,
-        address: algebaAddress as `0x${string}`,
-        abi: ALGEBAArtifact.abi,
+        address: leoAddress as `0x${string}`,
+        abi: LEOArtifact.abi,
         functionName: 'setStaking',
         args: [stakingAddress],
       });
@@ -265,9 +213,9 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
   };
 
   // setStaking() is a one-time setter (reverts once staking != address(0)), so
-  // once Step 5 has run, owner has no remaining capability on ALGEBA at all —
+  // once Step 3 has run, owner has no remaining capability on LEO at all —
   // renouncing here gives up nothing functional, only proves it publicly.
-  const renounceAlgeba = async () => {
+  const renounceLeo = async () => {
     if (!walletAddress || !isAddress(renounceTargetAddress) || !renounceConfirmed) return;
     setRenounceStatus('pending');
     setRenounceError(null);
@@ -276,7 +224,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
       const hash = await walletClient.writeContract({
         account: walletAddress as `0x${string}`,
         address: renounceTargetAddress as `0x${string}`,
-        abi: ALGEBAArtifact.abi,
+        abi: LEOArtifact.abi,
         functionName: 'renounceOwnership',
         args: [],
       });
@@ -284,13 +232,14 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
       await publicClient.waitForTransactionReceipt({ hash });
       setRenounceStatus('done');
     } catch (err) {
-      console.error('Renouncing ALGEBA ownership failed:', err);
+      console.error('Renouncing LEO ownership failed:', err);
       setRenounceError(err instanceof Error ? err.message : 'Transaction failed');
       setRenounceStatus('error');
     }
   };
 
   const allDone = authStatus === 'done';
+  const perContributor = (21_000_000 / CONTRIBUTOR_COUNT).toLocaleString(undefined, { maximumFractionDigits: 4 });
 
   return (
     <div className="space-y-6">
@@ -299,111 +248,47 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         {network.key === 'mainnet' && ' This is Ethereum Mainnet — transactions cost real ETH and are irreversible.'}
       </div>
 
-      <StepShell number={1} title="Deploy ALGEBA.sol" status={algebaStatus}>
-        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
-          Initial Holder (receives {GENESIS_ALLOCATION_AGB} AGB Genesis allocation)
-        </label>
-        <input
-          type="text"
-          value={initialHolder}
-          onChange={(e) => setInitialHolder(e.target.value)}
-          disabled={algebaStatus === 'done' || algebaStatus === 'pending'}
-          placeholder="0x..."
-        />
-        {algebaStatus !== 'done' && (
-          <button
-            onClick={deployAlgeba}
-            disabled={algebaStatus === 'pending' || !isAddress(initialHolder || '')}
-            className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
-          >
-            {algebaStatus === 'pending' ? 'Confirming...' : 'Deploy ALGEBA'}
-          </button>
-        )}
-        {algebaError && <p className="text-xs text-navy mt-1">{algebaError}</p>}
-        {algebaTx && <TxLine hash={algebaTx} explorerBase={network.explorerUrl} />}
-        {algebaAddress && <AddressCard address={algebaAddress} explorerBase={network.explorerUrl} />}
-      </StepShell>
-
-      <StepShell number={2} title="Deploy Genesis.sol" status={genesisStatus}>
-        <p className="text-muted">Constructor arguments: the ALGEBA token address from Step 1, how long Genesis stays open, and the whitelist Merkle root.</p>
-        {algebaAddress && (
-          <p className="text-xs text-muted">Token: <span className="text-navy font-semibold">{algebaAddress}</span></p>
-        )}
-        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
-          Genesis Duration (minutes) — 1440 = 24 hours
-        </label>
-        <input
-          type="number"
-          step="any"
-          min="0"
-          value={genesisDurationMinutes}
-          onChange={(e) => setGenesisDurationMinutes(e.target.value)}
-          disabled={genesisStatus === 'done' || genesisStatus === 'pending'}
-          placeholder="e.g. 1440"
-        />
-        {formatDurationPreview(genesisDurationMinutes) && (
-          <p className="text-xs text-muted">{formatDurationPreview(genesisDurationMinutes)}</p>
-        )}
-
-        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1 mt-2">
-          Whitelist Merkle Root
-        </label>
-        <p className="text-xs text-muted mb-2">Immutable once deployed — the full whitelist must be finalized first.</p>
-
-        {genesisStatus !== 'done' && genesisStatus !== 'pending' && (
-          <div className="mb-3">
-            <WhitelistBuilder onRootGenerated={setMerkleRoot} />
-          </div>
-        )}
-
-        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
-          Root (auto-filled by the builder above, or paste one you already generated)
-        </label>
-        <input
-          type="text"
-          value={merkleRoot}
-          onChange={(e) => setMerkleRoot(e.target.value)}
-          disabled={genesisStatus === 'done' || genesisStatus === 'pending'}
-          placeholder="0x..."
-        />
-        {merkleRoot && !isValidMerkleRoot(merkleRoot) && (
-          <p className="text-xs text-navy mt-1">Must be a 32-byte hex value (0x + 64 hex characters).</p>
-        )}
-
-        {genesisStatus !== 'done' && genesisStatus !== 'locked' && (
-          <button
-            onClick={deployGenesis}
-            disabled={genesisStatus === 'pending' || minutesToSeconds(genesisDurationMinutes) <= 0 || !isValidMerkleRoot(merkleRoot)}
-            className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
-          >
-            {genesisStatus === 'pending' ? 'Confirming...' : 'Deploy Genesis'}
-          </button>
-        )}
-        {genesisError && <p className="text-xs text-navy mt-1">{genesisError}</p>}
-        {genesisTx && <TxLine hash={genesisTx} explorerBase={network.explorerUrl} />}
-        {genesisAddress && <AddressCard address={genesisAddress} explorerBase={network.explorerUrl} />}
-      </StepShell>
-
-      <StepShell number={3} title={`Fund Genesis (${GENESIS_ALLOCATION_AGB} AGB)`} status={fundStatus}>
+      <StepShell number={1} title="Deploy LEO.sol" status={leoStatus}>
         <p className="text-muted">
-          Genesis does not mint tokens itself — it pays out from its own balance. Transfer the {GENESIS_ALLOCATION_AGB} AGB
-          minted to the initial holder in Step 1 into the Genesis contract.
+          Mints the 21,000,000 LEO genesis allocation at deploy, split equally across {CONTRIBUTOR_COUNT} contributor
+          wallets (≈ {perContributor} LEO each; the first wallet also gets the 3-wei rounding remainder). The deployer
+          receives nothing. Cannot be changed after deployment.
         </p>
-        {fundStatus !== 'done' && fundStatus !== 'locked' && (
+        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
+          Contributor wallets ({CONTRIBUTOR_COUNT}, one per line)
+        </label>
+        <textarea
+          rows={9}
+          value={contributorsText}
+          onChange={(e) => setContributorsText(e.target.value)}
+          disabled={leoStatus === 'done' || leoStatus === 'pending'}
+          placeholder={'0x...\n0x...\n...'}
+          className="w-full px-3 py-2 font-mono text-xs"
+        />
+        {contributors.error ? (
+          <p className="text-xs text-navy mt-1">{contributors.error}</p>
+        ) : (
+          contributorsReady && <p className="text-xs text-muted mt-1">{CONTRIBUTOR_COUNT} valid, distinct wallets.</p>
+        )}
+        {leoStatus !== 'done' && (
           <button
-            onClick={fundGenesis}
-            disabled={fundStatus === 'pending'}
+            onClick={deployLeo}
+            disabled={leoStatus === 'pending' || !contributorsReady}
             className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
           >
-            {fundStatus === 'pending' ? 'Confirming...' : `Transfer ${GENESIS_ALLOCATION_AGB} AGB to Genesis`}
+            {leoStatus === 'pending' ? 'Confirming...' : 'Deploy LEO'}
           </button>
         )}
-        {fundError && <p className="text-xs text-navy mt-1">{fundError}</p>}
-        {fundTx && <TxLine hash={fundTx} explorerBase={network.explorerUrl} />}
+        {leoError && <p className="text-xs text-navy mt-1">{leoError}</p>}
+        {leoTx && <TxLine hash={leoTx} explorerBase={network.explorerUrl} />}
+        {leoAddress && <AddressCard address={leoAddress} explorerBase={network.explorerUrl} />}
       </StepShell>
 
-      <StepShell number={4} title="Deploy Staking.sol" status={stakingStatus}>
-        <p className="text-muted">Constructor arguments: ALGEBA address, Genesis address, and the halving period.</p>
+      <StepShell number={2} title="Deploy Staking.sol" status={stakingStatus}>
+        <p className="text-muted">
+          Constructor arguments: LEO address, the halving period, and the wallets for the four ecosystem buckets.
+          Staking opens immediately; <strong>emission starts automatically 24 hours after this transaction</strong>.
+        </p>
         <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">
           Halving Period (years)
         </label>
@@ -418,16 +303,39 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         />
         {formatHalvingPreview(halvingYears) ? (
           <p className="text-xs text-muted">
-            {formatHalvingPreview(halvingYears)}. Timestamp-based: each halving lands exactly this long after the
-            first stake, regardless of Ethereum block time. Immutable after deployment.
+            {formatHalvingPreview(halvingYears)}. Timestamp-based: each halving lands exactly this long after
+            emission starts, regardless of Ethereum block time. Immutable after deployment.
           </p>
         ) : (
           halvingYears && <p className="text-xs text-navy mt-1">Enter a period greater than 0.</p>
         )}
+
+        {BUCKETS.map((bucket, i) => (
+          <div key={bucket.key}>
+            <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1 mt-2">
+              {bucket.name} wallet ({bucket.description})
+            </label>
+            <input
+              type="text"
+              value={bucketWallets[i]}
+              onChange={(e) => setBucketWallets(bucketWallets.map((v, j) => (j === i ? e.target.value.trim() : v)))}
+              disabled={stakingStatus === 'done' || stakingStatus === 'pending'}
+              placeholder="0x..."
+            />
+            {bucketWallets[i] && !isAddress(bucketWallets[i]) && (
+              <p className="text-xs text-navy mt-1">Not a valid address.</p>
+            )}
+          </div>
+        ))}
+        <p className="text-xs text-muted">
+          Each wallet claims its own 20% of emission. A wallet can later hand its bucket to a new address (two-step:
+          propose, then the new wallet accepts). No admin can change them.
+        </p>
+
         {stakingStatus !== 'done' && stakingStatus !== 'locked' && (
           <button
             onClick={deployStaking}
-            disabled={stakingStatus === 'pending' || !(yearsToSeconds(halvingYears) > 0)}
+            disabled={stakingStatus === 'pending' || !(yearsToSeconds(halvingYears) > 0) || !bucketsReady}
             className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
           >
             {stakingStatus === 'pending' ? 'Confirming...' : 'Deploy Staking'}
@@ -436,41 +344,49 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         {stakingError && <p className="text-xs text-navy mt-1">{stakingError}</p>}
         {stakingTx && <TxLine hash={stakingTx} explorerBase={network.explorerUrl} />}
         {stakingAddress && <AddressCard address={stakingAddress} explorerBase={network.explorerUrl} />}
+        {emissionStart !== null && (
+          <p className="text-xs text-muted">
+            Emission starts: <strong>{new Date(Number(emissionStart) * 1000).toLocaleString()}</strong>
+          </p>
+        )}
       </StepShell>
 
-      <StepShell number={5} title="Authorize Staking as Minter" status={authStatus}>
-        <p className="text-muted">Calls <code className="bg-surface px-1 rounded-sm">ALGEBA.setStaking(stakingAddress)</code> so Staking can mint reward emissions.</p>
+      <StepShell number={3} title="Authorize Staking as Minter" status={authStatus}>
+        <p className="text-muted">
+          Calls <code className="bg-surface px-1 rounded-sm">LEO.setStaking(stakingAddress)</code> so Staking can mint
+          emission. Do this before emission starts (within 24 hours of Step 2).
+        </p>
         {authStatus !== 'done' && authStatus !== 'locked' && (
           <button
             onClick={authorizeStaking}
             disabled={authStatus === 'pending'}
             className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
           >
-            {authStatus === 'pending' ? 'Confirming...' : 'Set Staking on ALGEBA'}
+            {authStatus === 'pending' ? 'Confirming...' : 'Set Staking on LEO'}
           </button>
         )}
         {authError && <p className="text-xs text-navy mt-1">{authError}</p>}
         {authTx && <TxLine hash={authTx} explorerBase={network.explorerUrl} />}
       </StepShell>
 
-      <StepShell number={6} title="Renounce ALGEBA Ownership (Optional)" status={renounceStatus}>
+      <StepShell number={4} title="Renounce LEO Ownership (Optional)" status={renounceStatus}>
         <p className="text-muted">
           <code className="bg-surface px-1 rounded-sm">setStaking()</code> can only ever be called once, so after it has
-          run the owner key has no remaining capability on ALGEBA — no mint switch, no pause, nothing. Renouncing here
+          run the owner key has no remaining capability on LEO — no mint switch, no pause, nothing. Renouncing here
           gives up no real power; it just proves that publicly on-chain. Works standalone: defaults to the address from
-          Step 1 above if you deployed it this session, or enter any ALGEBA address you own below.
+          Step 1 above if you deployed it this session, or enter any LEO address you own below.
         </p>
         {renounceStatus !== 'done' && (
           <>
             <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1 mt-2">
-              ALGEBA Address
+              LEO Address
             </label>
             <input
               type="text"
               value={renounceAddressInput}
               onChange={(e) => setRenounceAddressInput(e.target.value)}
               disabled={renounceStatus === 'pending'}
-              placeholder={algebaAddress || '0x...'}
+              placeholder={leoAddress || '0x...'}
             />
 
             {renounceTargetAddress && !isAddress(renounceTargetAddress) && (
@@ -483,7 +399,7 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
               <p className="text-xs text-navy mt-1">{renounceOwnerError}</p>
             )}
             {isAddress(renounceTargetAddress) && renounceOwner && (
-              renounceOwner === '0x0000000000000000000000000000000000000000' ? (
+              renounceOwner === ZERO ? (
                 <p className="text-xs text-muted mt-1">Already renounced — owner is the zero address.</p>
               ) : (
                 <>
@@ -499,10 +415,10 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
               )
             )}
 
-            {renounceOwner && renounceOwner !== '0x0000000000000000000000000000000000000000' && (
+            {renounceOwner && renounceOwner !== ZERO && (
               <>
                 <div className="alert alert-primary mt-2">
-                  This is permanent and cannot be undone. Only do this once you're certain ALGEBA is configured correctly.
+                  This is permanent and cannot be undone. Only do this once you're certain LEO is configured correctly.
                 </div>
                 <label className="flex items-center gap-2 text-xs text-muted mt-2">
                   <input
@@ -511,14 +427,14 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
                     onChange={(e) => setRenounceConfirmed(e.target.checked)}
                     disabled={renounceStatus === 'pending'}
                   />
-                  I understand this is irreversible and want to renounce ownership of ALGEBA.
+                  I understand this is irreversible and want to renounce ownership of LEO.
                 </label>
                 <button
-                  onClick={renounceAlgeba}
+                  onClick={renounceLeo}
                   disabled={renounceStatus === 'pending' || !renounceConfirmed}
                   className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
                 >
-                  {renounceStatus === 'pending' ? 'Confirming...' : 'Renounce ALGEBA Ownership'}
+                  {renounceStatus === 'pending' ? 'Confirming...' : 'Renounce LEO Ownership'}
                 </button>
               </>
             )}
@@ -527,13 +443,13 @@ export function DeployContracts({ walletAddress }: { walletAddress: string }) {
         {renounceError && <p className="text-xs text-navy mt-1">{renounceError}</p>}
         {renounceTx && <TxLine hash={renounceTx} explorerBase={network.explorerUrl} />}
         {renounceStatus === 'done' && (
-          <p className="text-xs text-muted mt-1">Ownership renounced — ALGEBA now has no owner.</p>
+          <p className="text-xs text-muted mt-1">Ownership renounced — LEO now has no owner.</p>
         )}
       </StepShell>
 
       {allDone && (() => {
         const suffix = network.key === 'mainnet' ? 'MAINNET' : 'SEPOLIA';
-        const envSnippet = `VITE_ALGEBA_ADDRESS_${suffix}=${algebaAddress}\nVITE_GENESIS_ADDRESS_${suffix}=${genesisAddress}\nVITE_STAKING_ADDRESS_${suffix}=${stakingAddress}`;
+        const envSnippet = `VITE_LEO_ADDRESS_${suffix}=${leoAddress}\nVITE_STAKING_ADDRESS_${suffix}=${stakingAddress}`;
         return (
           <div className="card">
             <div className="card-header flex items-center justify-between gap-3">

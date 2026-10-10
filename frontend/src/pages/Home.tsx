@@ -2,6 +2,7 @@ import { Suspense, useState } from 'react';
 import { Stats } from '../components/Stats';
 import { Staking } from '../components/Staking';
 import { EmissionChart } from '../components/EmissionChart';
+import { Buckets } from '../components/Buckets';
 import { useNetwork } from '../context/NetworkContext';
 import { explorerAddressUrl } from '../config/networks';
 import { formatAddress } from '../utils/formatting';
@@ -9,7 +10,7 @@ import { formatAddress } from '../utils/formatting';
 function TokenAddressBadge() {
   const { network } = useNetwork();
   const [copied, setCopied] = useState(false);
-  const address = network.contracts.ALGEBA;
+  const address = network.contracts.LEO;
 
   if (!address) return null;
 
@@ -27,7 +28,7 @@ function TokenAddressBadge() {
 
   return (
     <div className="inline-flex items-center gap-2 rounded-md border border-platinum-dark bg-platinum px-3 py-1.5">
-      <span className="text-xs font-bold text-navy">AGB</span>
+      <span className="text-xs font-bold text-navy">LEO</span>
       <a
         href={explorerAddressUrl(network, address)}
         target="_blank"
@@ -77,6 +78,12 @@ export function Home() {
         <section className="py-2.5 px-2">
           <Suspense fallback={<div className="animate-pulse bg-gray-200 h-96 rounded-lg"></div>}>
             <Staking />
+          </Suspense>
+        </section>
+
+        <section className="py-2.5 px-2">
+          <Suspense fallback={<div className="animate-pulse bg-gray-200 h-64 rounded-lg"></div>}>
+            <Buckets />
           </Suspense>
         </section>
 

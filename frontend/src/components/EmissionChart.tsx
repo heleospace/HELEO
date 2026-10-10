@@ -7,10 +7,10 @@ import { createNetworkPublicClient } from '../utils/publicClient';
 import { useNetwork } from '../context/NetworkContext';
 import { formatBigInt } from '../utils/formatting';
 
-// Mirrors Staking.sol / ALGEBA.sol constants.
-const GENESIS_ALLOCATION = 50;
-const FIRST_EPOCH_EMISSION = 105_000_000;
-const TOTAL_STAKING_EMISSION = 209_999_950;
+// Mirrors Staking.sol / LEO.sol constants.
+const GENESIS_ALLOCATION = 21_000_000;
+const FIRST_EPOCH_EMISSION = 10_500_000;
+const TOTAL_STAKING_EMISSION = 21_000_000;
 const MAX_SUPPLY_TOTAL = GENESIS_ALLOCATION + TOTAL_STAKING_EMISSION;
 const FULL_VIEW_EPOCHS = 12;
 
@@ -26,12 +26,12 @@ interface ChartPoint {
 interface LiveData {
   emitted: number;
   totalSupply: number;
-  // Current position in epochs; null until the first stake starts emission.
+  // Current position in epochs (0 until emission starts 24h after deploy).
   now: number | null;
   halvingDays: number;
 }
 
-/** Scheduled supply after `x` epochs: genesis + halving emission, capped at the staking allocation. */
+/** Scheduled supply after `x` epochs: genesis + halving emission, capped at the emission allocation. */
 function plannedSupply(x: number): number {
   const epoch = Math.floor(x);
   const completed = FIRST_EPOCH_EMISSION * 2 * (1 - Math.pow(0.5, epoch));
@@ -39,7 +39,7 @@ function plannedSupply(x: number): number {
   return GENESIS_ALLOCATION + Math.min(completed + partial, TOTAL_STAKING_EMISSION);
 }
 
-function formatAgb(value: number): string {
+function formatLeo(value: number): string {
   if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(2)}M`;
   if (value >= 1_000) return `${(value / 1_000).toFixed(2)}K`;
   return Math.floor(value).toLocaleString();
@@ -89,7 +89,7 @@ export function EmissionChart() {
     setRaw(null);
 
     const fetchLive = async () => {
-      if (!network.contracts.STAKING || !network.contracts.ALGEBA) return;
+      if (!network.contracts.STAKING || !network.contracts.LEO) return;
       try {
         const publicClient = createNetworkPublicClient(network);
         const [stats, block] = await Promise.all([
@@ -165,7 +165,7 @@ export function EmissionChart() {
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 p-4 rounded-md border border-platinum bg-platinum">
           <div className="text-center">
             <p className="text-xs font-semibold text-muted uppercase tracking-wide">Genesis</p>
-            <p className="text-xl font-bold mt-2 text-navy">{GENESIS_ALLOCATION.toLocaleString()} AGB</p>
+            <p className="text-xl font-bold mt-2 text-navy">{GENESIS_ALLOCATION.toLocaleString()} LEO</p>
           </div>
           <div className="text-center">
             <p className="text-xs font-semibold text-muted uppercase tracking-wide">Emitted</p>
@@ -198,11 +198,11 @@ export function EmissionChart() {
             <YAxis
               width={64}
               stroke="#6b7280"
-              tickFormatter={formatAgb}
+              tickFormatter={formatLeo}
               tick={{ fontSize: 12 }}
             />
             <Tooltip
-              formatter={(value) => `${formatAgb(typeof value === 'number' ? value : 0)} AGB`}
+              formatter={(value) => `${formatLeo(typeof value === 'number' ? value : 0)} LEO`}
               labelFormatter={(x) => {
                 const n = Number(x);
                 if (n === 0) return 'Genesis';
@@ -231,14 +231,14 @@ export function EmissionChart() {
               <div className="w-10 mt-2 flex-shrink-0 border-t-2 border-dashed border-[#9CA3AF]"></div>
               <div>
                 <p className="font-semibold text-sm text-navy">Full emission plan</p>
-                <p className="text-xs text-muted">Starts at the {GENESIS_ALLOCATION} AGB Genesis, reaches {formatAgb(plannedSupply(1))} after epoch 1, then halves every epoch toward {(MAX_SUPPLY_TOTAL / 1_000_000).toFixed(0)}M.</p>
+                <p className="text-xs text-muted">Starts at the {GENESIS_ALLOCATION.toLocaleString()} LEO contributor genesis, reaches {formatLeo(plannedSupply(1))} after epoch 1, then halves every epoch toward {(MAX_SUPPLY_TOTAL / 1_000_000).toFixed(0)}M.</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
               <div className="w-10 h-0.5 mt-2 flex-shrink-0 bg-[#16A34A]"></div>
               <div>
                 <p className="font-semibold text-sm text-navy">Emitted supply (green)</p>
-                <p className="text-xs text-muted">emittedSupply(): Genesis plus everything the schedule has released up to now, claimed or not.</p>
+                <p className="text-xs text-muted">emittedSupply(): genesis plus everything the schedule has released to stakers and the four buckets so far, claimed or not.</p>
               </div>
             </div>
             <div className="flex items-start gap-3">
@@ -274,9 +274,9 @@ export function EmissionChart() {
                     {row.epoch === 0 ? 'Genesis' : row.epoch}
                     {row.epoch === currentEpoch && <span className="ml-2 text-xs font-semibold text-[#16A34A]">current</span>}
                   </td>
-                  <td className="px-4 py-3 text-right">{row.epoch === 0 ? '—' : formatAgb(row.emission)}</td>
+                  <td className="px-4 py-3 text-right">{row.epoch === 0 ? '—' : formatLeo(row.emission)}</td>
                   <td className="px-4 py-3 text-right text-muted">{row.epoch === 0 ? '—' : `1/${Math.pow(2, row.epoch - 1)}x`}</td>
-                  <td className="px-4 py-3 text-right font-bold text-navy">{formatAgb(row.cumulative)}</td>
+                  <td className="px-4 py-3 text-right font-bold text-navy">{formatLeo(row.cumulative)}</td>
                 </tr>
               ))}
             </tbody>

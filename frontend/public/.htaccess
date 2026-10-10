@@ -21,7 +21,7 @@
 
 # Single-page app fallback: serve index.html for any request that isn't a
 # real file or directory, so React Router can handle client-side routes
-# (e.g. /security, /genesis, /bridge) on direct load and page refresh.
+# (e.g. /security, /whitepaper, /bridge) on direct load and page refresh.
 <IfModule mod_rewrite.c>
   RewriteEngine On
   RewriteBase /

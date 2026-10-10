@@ -5,18 +5,23 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
-interface IALGEBAReward {
-    function mintStakingReward(address to, uint256 amount) external;
-    function remainingStakingEmission() external view returns (uint256);
+interface ILEOEmission {
+    function mintEmission(address to, uint256 amount) external;
+    function remainingEmission() external view returns (uint256);
 }
 
-interface IGenesisFinalized {
-    function finalized() external view returns (bool);
-}
-
-/// @notice Permissionless ALGEBA staking with a global accretion index.
-/// Emission starts at the first successful stake after Genesis is finalized.
-/// No emission is minted while there are no stakers.
+/// @notice Permissionless HELEO staking plus the four ecosystem buckets.
+/// Staking is open from deployment; emission starts automatically EMISSION_DELAY
+/// (24 hours) after deployment, so early stakers all start on equal footing.
+/// Every second of emission is split equally five ways:
+///   1. Stakers  — distributed pro rata through a global accretion index
+///   2. Builder  — community building wallet
+///   3. Coder    — developer wallet
+///   4. Compute  — GPU provider wallet
+///   5. Research — research wallet
+/// The stakers' share for any period with nobody staked is never minted. The four
+/// bucket shares accrue on schedule regardless and are claimed by each bucket's
+/// recipient wallet.
 /// @dev The emission schedule is measured in seconds (block.timestamp), not block
 /// numbers, so each halving lands a fixed wall-clock period apart regardless of
 /// changes to Ethereum's block time or missed slots. On Ethereum mainnet a block's
@@ -24,36 +29,54 @@ interface IGenesisFinalized {
 contract Staking is ReentrancyGuard {
     using SafeERC20 for IERC20;
 
+    enum Bucket {
+        Builder,
+        Coder,
+        Compute,
+        Research
+    }
+
     uint256 public constant PRECISION = 1e36;
-    uint256 public constant GENESIS_ALLOCATION = 50 ether;
-    // Halving series (FIRST_EPOCH_EMISSION * 2) asymptotically sums to MAX_SUPPLY / 2
-    // = 210,000,000, slightly above TOTAL_EMISSION (209,999,950 — reserves 50 AGB for
-    // Genesis). emissionBetween()'s `remaining` clamp caps the tail of the schedule at
-    // TOTAL_EMISSION regardless, so the cap is always respected either way.
-    uint256 public constant FIRST_EPOCH_EMISSION = 105_000_000 ether;
-    uint256 public constant TOTAL_EMISSION = 209_999_950 ether;
+    uint256 public constant GENESIS_ALLOCATION = 21_000_000 ether;
+    // Halving series (FIRST_EPOCH_EMISSION * 2) asymptotically sums to
+    // TOTAL_EMISSION and never quite reaches it under integer halving;
+    // scheduledEmission() also clamps at TOTAL_EMISSION, so the cap always holds.
+    uint256 public constant FIRST_EPOCH_EMISSION = 10_500_000 ether;
+    uint256 public constant TOTAL_EMISSION = 21_000_000 ether;
     uint256 public constant MAX_EPOCHS = 256;
+    /// @notice Stakers + Builder + Coder + Compute + Research.
+    uint256 public constant BUCKET_COUNT = 5;
+    uint256 public constant ECOSYSTEM_BUCKETS = 4;
+    /// @notice Delay between deployment and the start of emission.
+    uint256 public constant EMISSION_DELAY = 24 hours;
     // Every position is either 0 or >= MIN_STAKE, so totalStaked is either 0 or
     // >= MIN_STAKE whenever _update() divides by it. That bounds accRewardPerShare
-    // for the contract's whole life at TOTAL_EMISSION * PRECISION / MIN_STAKE
-    // (~2.1e44), and any position (<= 2.1e26) times that index stays ~2.6 million
-    // times below 2^256. Without it, a 1-wei sole staker could inflate the index
-    // until normal-sized stakes overflow and revert forever.
+    // for the contract's whole life at (TOTAL_EMISSION / 5) * PRECISION / MIN_STAKE
+    // (~4.2e42), and any position (<= 4.2e25) times that index stays far below
+    // 2^256. Without it, a 1-wei sole staker could inflate the index until
+    // normal-sized stakes overflow and revert forever.
     uint256 public constant MIN_STAKE = 1 ether;
 
     IERC20 public immutable token;
-    IALGEBAReward public immutable rewardToken;
-    IGenesisFinalized public immutable genesis;
+    ILEOEmission public immutable rewardToken;
     /// @notice Length of each halving epoch, in seconds.
     uint256 public immutable halvingPeriod;
+    /// @notice Emission start: deployment time + EMISSION_DELAY.
+    uint256 public immutable startTime;
 
-    // Never 0 once emission has started: Genesis can only finalize at a timestamp
-    // >= its (nonzero) duration, and staking requires Genesis to be finalized.
-    uint256 public startTime;
     uint256 public totalStaked;
     uint256 public accRewardPerShare;
     uint256 public lastUpdateTime;
-    uint256 public totalEmitted;
+    /// @notice scheduledEmission() value already split up by _update().
+    uint256 public lastScheduled;
+    /// @notice Stakers' share credited to the reward index so far.
+    uint256 public stakerEmitted;
+    /// @notice Stakers' share skipped because nobody was staked. Never minted.
+    uint256 public stakerForfeited;
+
+    address[4] public bucketRecipient;
+    address[4] public pendingBucketRecipient;
+    uint256[4] public bucketClaimed;
 
     struct UserInfo {
         uint256 amount;
@@ -68,40 +91,47 @@ contract Staking is ReentrancyGuard {
     event Compounded(address indexed user, uint256 reward, uint256 newStake);
     event Unstaked(address indexed user, uint256 principal, uint256 reward);
     event EmergencyWithdrawn(address indexed user, uint256 principal, uint256 forfeitedRewards);
-    event EmissionStarted(uint256 indexed startTime);
     event IndexUpdated(uint256 fromTime, uint256 toTime, uint256 emission, uint256 index);
+    event StakerShareForfeited(uint256 fromTime, uint256 toTime, uint256 amount);
+    event BucketClaimed(Bucket indexed bucket, address indexed recipient, uint256 amount);
+    event BucketRecipientProposed(Bucket indexed bucket, address indexed current, address indexed proposed);
+    event BucketRecipientChanged(Bucket indexed bucket, address indexed previous, address indexed current);
 
     error ZeroAmount();
     error InsufficientStake();
     error BelowMinimumStake();
     error NoReward();
     error InvalidHalvingPeriod();
-    error GenesisNotFinalized();
+    error InvalidAddress();
+    error NotBucketRecipient();
+    error NotPendingRecipient();
 
     /// @param halvingPeriod_ Seconds per halving epoch (4 years = 126_230_400).
-    constructor(address token_, address genesis_, uint256 halvingPeriod_) {
-        require(token_ != address(0) && genesis_ != address(0), "zero address");
+    /// @param recipients_ Initial wallets for Builder, Coder, Compute, Research.
+    constructor(address token_, uint256 halvingPeriod_, address[4] memory recipients_) {
+        if (token_ == address(0)) revert InvalidAddress();
         if (halvingPeriod_ == 0) revert InvalidHalvingPeriod();
+        for (uint256 i = 0; i < ECOSYSTEM_BUCKETS; ++i) {
+            if (recipients_[i] == address(0)) revert InvalidAddress();
+        }
         token = IERC20(token_);
-        rewardToken = IALGEBAReward(token_);
-        genesis = IGenesisFinalized(genesis_);
+        rewardToken = ILEOEmission(token_);
         halvingPeriod = halvingPeriod_;
+        startTime = block.timestamp + EMISSION_DELAY;
+        lastUpdateTime = startTime;
+        bucketRecipient = recipients_;
     }
+
+    // ---------------------------------------------------------------------
+    // Staking
+    // ---------------------------------------------------------------------
 
     function stake(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
         UserInfo storage u = users[msg.sender];
         if (u.amount + amount < MIN_STAKE) revert BelowMinimumStake();
 
-        if (startTime == 0) {
-            if (!genesis.finalized()) revert GenesisNotFinalized();
-            startTime = block.timestamp;
-            lastUpdateTime = block.timestamp;
-            emit EmissionStarted(block.timestamp);
-        } else {
-            _update();
-        }
-
+        _update();
         _settle(u);
         token.safeTransferFrom(msg.sender, address(this), amount);
         u.amount += amount;
@@ -118,7 +148,7 @@ contract Staking is ReentrancyGuard {
         if (reward == 0) revert NoReward();
         u.rewards = 0;
         reward = _capToMintable(reward);
-        if (reward > 0) rewardToken.mintStakingReward(msg.sender, reward);
+        if (reward > 0) rewardToken.mintEmission(msg.sender, reward);
         emit Claimed(msg.sender, reward);
     }
 
@@ -133,7 +163,7 @@ contract Staking is ReentrancyGuard {
         u.amount += reward;
         totalStaked += reward;
         u.rewardDebt = u.amount * accRewardPerShare / PRECISION;
-        if (reward > 0) rewardToken.mintStakingReward(address(this), reward);
+        if (reward > 0) rewardToken.mintEmission(address(this), reward);
         emit Compounded(msg.sender, reward, u.amount);
     }
 
@@ -153,7 +183,7 @@ contract Staking is ReentrancyGuard {
         u.rewardDebt = u.amount * accRewardPerShare / PRECISION;
 
         reward = _capToMintable(reward);
-        if (reward > 0) rewardToken.mintStakingReward(address(this), reward);
+        if (reward > 0) rewardToken.mintEmission(address(this), reward);
         token.safeTransfer(msg.sender, amount + reward);
         emit Unstaked(msg.sender, amount, reward);
     }
@@ -177,6 +207,52 @@ contract Staking is ReentrancyGuard {
         emit EmergencyWithdrawn(msg.sender, amount, forfeited);
     }
 
+    // ---------------------------------------------------------------------
+    // Ecosystem buckets
+    // ---------------------------------------------------------------------
+
+    /// @notice Mints everything the bucket has accrued so far to its recipient.
+    /// Only the bucket's current recipient can call this.
+    function claimBucket(Bucket bucket) external nonReentrant returns (uint256 amount) {
+        uint256 i = uint256(bucket);
+        address recipient = bucketRecipient[i];
+        if (msg.sender != recipient) revert NotBucketRecipient();
+        amount = bucketClaimable(bucket);
+        if (amount == 0) revert NoReward();
+        bucketClaimed[i] += amount;
+        amount = _capToMintable(amount);
+        if (amount > 0) rewardToken.mintEmission(recipient, amount);
+        emit BucketClaimed(bucket, recipient, amount);
+    }
+
+    /// @notice Step 1 of handing a bucket to a new wallet. Only the current
+    /// recipient can propose; pass address(0) to cancel a pending proposal.
+    function proposeBucketRecipient(Bucket bucket, address newRecipient) external {
+        uint256 i = uint256(bucket);
+        if (msg.sender != bucketRecipient[i]) revert NotBucketRecipient();
+        pendingBucketRecipient[i] = newRecipient;
+        emit BucketRecipientProposed(bucket, msg.sender, newRecipient);
+    }
+
+    /// @notice Step 2: the proposed wallet accepts, proving it can sign. Anything
+    /// the bucket has accrued but not yet claimed moves with it.
+    function acceptBucketRecipient(Bucket bucket) external {
+        uint256 i = uint256(bucket);
+        if (msg.sender != pendingBucketRecipient[i] || msg.sender == address(0)) revert NotPendingRecipient();
+        address previous = bucketRecipient[i];
+        bucketRecipient[i] = msg.sender;
+        pendingBucketRecipient[i] = address(0);
+        emit BucketRecipientChanged(bucket, previous, msg.sender);
+    }
+
+    function bucketClaimable(Bucket bucket) public view returns (uint256) {
+        return scheduledEmission(block.timestamp) / BUCKET_COUNT - bucketClaimed[uint256(bucket)];
+    }
+
+    // ---------------------------------------------------------------------
+    // Views
+    // ---------------------------------------------------------------------
+
     function pendingReward(address account) external view returns (uint256) {
         UserInfo memory u = users[account];
         uint256 index = previewIndex();
@@ -186,91 +262,105 @@ contract Staking is ReentrancyGuard {
     }
 
     function previewIndex() public view returns (uint256) {
-        if (startTime == 0 || totalStaked == 0 || block.timestamp <= lastUpdateTime) return accRewardPerShare;
-        uint256 emission = emissionBetween(lastUpdateTime, block.timestamp);
-        if (emission == 0) return accRewardPerShare;
-        return accRewardPerShare + emission * PRECISION / totalStaked;
+        if (totalStaked == 0 || block.timestamp <= lastUpdateTime) return accRewardPerShare;
+        uint256 share = (scheduledEmission(block.timestamp) - lastScheduled) / BUCKET_COUNT;
+        if (share == 0) return accRewardPerShare;
+        return accRewardPerShare + share * PRECISION / totalStaked;
     }
 
     /// @notice Read-only supply projection: genesis allocation + everything the
-    /// halving schedule says has emitted so far, free to read. The real ERC20
-    /// totalSupply() on ALGEBA always remains the actual minted supply — this is
-    /// only ever a schedule-based projection.
+    /// halving schedule has made claimable so far (all four bucket shares, plus
+    /// the stakers' share for every period someone was staked), free to read. The
+    /// real ERC20 totalSupply() on LEO always remains the actual minted supply —
+    /// this is only ever a schedule-based projection.
     function emittedSupply() external view returns (uint256) {
-        uint256 preview = (startTime != 0 && totalStaked != 0)
-            ? emissionBetween(lastUpdateTime, block.timestamp)
-            : 0;
-        return GENESIS_ALLOCATION + totalEmitted + preview;
+        uint256 scheduled = scheduledEmission(block.timestamp);
+        uint256 stakers = stakerEmitted;
+        if (totalStaked != 0 && scheduled > lastScheduled) {
+            stakers += (scheduled - lastScheduled) / BUCKET_COUNT;
+        }
+        return GENESIS_ALLOCATION + (scheduled / BUCKET_COUNT) * ECOSYSTEM_BUCKETS + stakers;
+    }
+
+    function emissionStarted() public view returns (bool) {
+        return block.timestamp >= startTime;
     }
 
     function currentEpoch() public view returns (uint256) {
-        if (startTime == 0 || block.timestamp < startTime) return 0;
+        if (block.timestamp < startTime) return 0;
         return (block.timestamp - startTime) / halvingPeriod;
     }
 
+    /// @notice Total emission per second across all five buckets. Each bucket
+    /// (including stakers as a group) receives one fifth of this.
     function currentEmissionPerSecond() public view returns (uint256) {
-        if (startTime == 0) return 0;
+        if (block.timestamp < startTime) return 0;
         uint256 epoch = currentEpoch();
         if (epoch >= MAX_EPOCHS) return 0;
         return (FIRST_EPOCH_EMISSION >> epoch) / halvingPeriod;
     }
 
     function nextHalvingTime() public view returns (uint256) {
-        if (startTime == 0) return 0;
         return startTime + (currentEpoch() + 1) * halvingPeriod;
     }
 
-    function emissionBetween(uint256 fromTime, uint256 toTime) public view returns (uint256 total) {
-        if (startTime == 0 || toTime <= fromTime || totalEmitted >= TOTAL_EMISSION || toTime <= startTime) return 0;
-        if (fromTime < startTime) fromTime = startTime;
-
-        uint256 cursor = fromTime;
-        uint256 remaining = TOTAL_EMISSION - totalEmitted;
+    /// @notice Cumulative emission (all five buckets) the schedule has released
+    /// from startTime up to `time`. A pure function of time.
+    function scheduledEmission(uint256 time) public view returns (uint256 total) {
+        if (time <= startTime) return 0;
+        uint256 elapsed = time - startTime;
+        uint256 fullEpochs = elapsed / halvingPeriod;
 
         // Bounded by the number of halvings, never by elapsed time or number of users.
-        for (uint256 i = 0; i < MAX_EPOCHS && cursor < toTime; ++i) {
-            uint256 epoch = (cursor - startTime) / halvingPeriod;
-            if (epoch >= MAX_EPOCHS) break;
-
-            uint256 epochEmission = FIRST_EPOCH_EMISSION >> epoch;
+        for (uint256 e = 0; e < fullEpochs && e < MAX_EPOCHS; ++e) {
+            uint256 epochEmission = FIRST_EPOCH_EMISSION >> e;
             if (epochEmission == 0) break;
-
-            uint256 epochEnd = startTime + (epoch + 1) * halvingPeriod;
-            uint256 end = toTime < epochEnd ? toTime : epochEnd;
-            uint256 portion = epochEmission * (end - cursor) / halvingPeriod;
-            total += portion;
-            cursor = end;
-
-            if (total >= remaining) return remaining;
+            total += epochEmission;
+        }
+        if (fullEpochs < MAX_EPOCHS) {
+            total += (FIRST_EPOCH_EMISSION >> fullEpochs) * (elapsed % halvingPeriod) / halvingPeriod;
         }
 
-        return total > remaining ? remaining : total;
+        return total > TOTAL_EMISSION ? TOTAL_EMISSION : total;
     }
 
+    /// @notice Total emission (all five buckets) released between two times.
+    function emissionBetween(uint256 fromTime, uint256 toTime) public view returns (uint256) {
+        if (toTime <= fromTime) return 0;
+        return scheduledEmission(toTime) - scheduledEmission(fromTime);
+    }
+
+    // ---------------------------------------------------------------------
+    // Internal
+    // ---------------------------------------------------------------------
+
     function _update() internal {
-        if (startTime == 0 || block.timestamp <= lastUpdateTime) return;
+        if (block.timestamp <= lastUpdateTime) return;
 
-        if (totalStaked == 0) {
-            // Idle periods are permanently missed. They are not assigned to later stakers.
-            lastUpdateTime = block.timestamp;
-            return;
-        }
-
-        uint256 emission = emissionBetween(lastUpdateTime, block.timestamp);
-        if (emission > 0) {
-            totalEmitted += emission;
-            accRewardPerShare += emission * PRECISION / totalStaked;
-            emit IndexUpdated(lastUpdateTime, block.timestamp, emission, accRewardPerShare);
+        uint256 scheduled = scheduledEmission(block.timestamp);
+        uint256 share = (scheduled - lastScheduled) / BUCKET_COUNT;
+        if (share > 0) {
+            if (totalStaked == 0) {
+                // Idle periods are permanently missed. They are not assigned to later stakers.
+                stakerForfeited += share;
+                emit StakerShareForfeited(lastUpdateTime, block.timestamp, share);
+            } else {
+                stakerEmitted += share;
+                accRewardPerShare += share * PRECISION / totalStaked;
+                emit IndexUpdated(lastUpdateTime, block.timestamp, share, accRewardPerShare);
+            }
+            // Advance by exactly what was split so the sub-5-wei remainder carries over.
+            lastScheduled += share * BUCKET_COUNT;
         }
         lastUpdateTime = block.timestamp;
     }
 
     /// @dev Floor rounding in per-user accounting can leave total owed rewards a
-    /// few wei above what ALGEBA can still mint once emission is exhausted.
-    /// Paying the excess would revert in mintStakingReward and, inside
-    /// unstake(), trap principal. The unmintable dust is forfeited instead.
+    /// few wei above what LEO can still mint once emission is exhausted.
+    /// Paying the excess would revert in mintEmission and, inside unstake(),
+    /// trap principal. The unmintable dust is forfeited instead.
     function _capToMintable(uint256 reward) internal view returns (uint256) {
-        uint256 mintable = rewardToken.remainingStakingEmission();
+        uint256 mintable = rewardToken.remainingEmission();
         return reward > mintable ? mintable : reward;
     }
 

@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.4.16 >=0.6.2 ^0.8.20 ^0.8.24;
 
-// @openzeppelin/contracts/utils/introspection/IERC165.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/utils/introspection/IERC165.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (utils/introspection/IERC165.sol)
 
@@ -26,14 +26,14 @@ interface IERC165 {
     function supportsInterface(bytes4 interfaceId) external view returns (bool);
 }
 
-// @openzeppelin/contracts/token/ERC20/IERC20.sol
+// ../frontend/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/IERC20.sol)
 
 /**
  * @dev Interface of the ERC-20 standard as defined in the ERC.
  */
-interface IERC20 {
+interface IERC20_0 {
     /**
      * @dev Emitted when `value` tokens are moved from one account (`from`) to
      * another (`to`).
@@ -105,13 +105,86 @@ interface IERC20 {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
-// @openzeppelin/contracts/token/ERC20/IERC20.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/IERC20.sol)
 
+/**
+ * @dev Interface of the ERC-20 standard as defined in the ERC.
+ */
+interface IERC20_1 {
+    /**
+     * @dev Emitted when `value` tokens are moved from one account (`from`) to
+     * another (`to`).
+     *
+     * Note that `value` may be zero.
+     */
+    event Transfer(address indexed from, address indexed to, uint256 value);
 
+    /**
+     * @dev Emitted when the allowance of a `spender` for an `owner` is set by
+     * a call to {approve}. `value` is the new allowance.
+     */
+    event Approval(address indexed owner, address indexed spender, uint256 value);
 
-// @openzeppelin/contracts/utils/StorageSlot.sol
+    /**
+     * @dev Returns the value of tokens in existence.
+     */
+    function totalSupply() external view returns (uint256);
+
+    /**
+     * @dev Returns the value of tokens owned by `account`.
+     */
+    function balanceOf(address account) external view returns (uint256);
+
+    /**
+     * @dev Moves a `value` amount of tokens from the caller's account to `to`.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transfer(address to, uint256 value) external returns (bool);
+
+    /**
+     * @dev Returns the remaining number of tokens that `spender` will be
+     * allowed to spend on behalf of `owner` through {transferFrom}. This is
+     * zero by default.
+     *
+     * This value changes when {approve} or {transferFrom} are called.
+     */
+    function allowance(address owner, address spender) external view returns (uint256);
+
+    /**
+     * @dev Sets a `value` amount of tokens as the allowance of `spender` over the
+     * caller's tokens.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * IMPORTANT: Beware that changing an allowance with this method brings the risk
+     * that someone may use both the old and the new allowance by unfortunate
+     * transaction ordering. One possible solution to mitigate this race
+     * condition is to first reduce the spender's allowance to 0 and set the
+     * desired value afterwards:
+     * https://github.com/ethereum/EIPs/issues/20#issuecomment-263524729
+     *
+     * Emits an {Approval} event.
+     */
+    function approve(address spender, uint256 value) external returns (bool);
+
+    /**
+     * @dev Moves a `value` amount of tokens from `from` to `to` using the
+     * allowance mechanism. `value` is then deducted from the caller's
+     * allowance.
+     *
+     * Returns a boolean value indicating whether the operation succeeded.
+     *
+     * Emits a {Transfer} event.
+     */
+    function transferFrom(address from, address to, uint256 value) external returns (bool);
+}
+
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/utils/StorageSlot.sol
 
 // OpenZeppelin Contracts (last updated v5.1.0) (utils/StorageSlot.sol)
 // This file was procedurally generated from scripts/generate/templates/StorageSlot.js.
@@ -254,15 +327,15 @@ library StorageSlot {
     }
 }
 
-// @openzeppelin/contracts/interfaces/IERC165.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/interfaces/IERC165.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC165.sol)
 
-// @openzeppelin/contracts/interfaces/IERC20.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/interfaces/IERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC20.sol)
 
-// @openzeppelin/contracts/utils/ReentrancyGuard.sol
+// ../frontend/node_modules/@openzeppelin/contracts/utils/ReentrancyGuard.sol
 
 // OpenZeppelin Contracts (last updated v5.5.0) (utils/ReentrancyGuard.sol)
 
@@ -379,7 +452,7 @@ abstract contract ReentrancyGuard {
     }
 }
 
-// @openzeppelin/contracts/interfaces/IERC1363.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/interfaces/IERC1363.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (interfaces/IERC1363.sol)
 
@@ -390,7 +463,7 @@ abstract contract ReentrancyGuard {
  * Defines an extension interface for ERC-20 tokens that supports executing code on a recipient contract
  * after `transfer` or `transferFrom`, or code on a spender contract after `approve`, in a single transaction.
  */
-interface IERC1363 is IERC20, IERC165 {
+interface IERC1363 is IERC20_1, IERC165 {
     /*
      * Note: the ERC-165 identifier for this interface is 0xb0202a11.
      * 0xb0202a11 ===
@@ -462,7 +535,7 @@ interface IERC1363 is IERC20, IERC165 {
     function approveAndCall(address spender, uint256 value, bytes calldata data) external returns (bool);
 }
 
-// @openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
+// ../frontend/node_modules/@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.5.0) (token/ERC20/utils/SafeERC20.sol)
 
@@ -490,7 +563,7 @@ library SafeERC20 {
      * @dev Transfer `value` amount of `token` from the calling contract to `to`. If `token` returns no value,
      * non-reverting calls are assumed to be successful.
      */
-    function safeTransfer(IERC20 token, address to, uint256 value) internal {
+    function safeTransfer(IERC20_0 token, address to, uint256 value) internal {
         if (!_safeTransfer(token, to, value, true)) {
             revert SafeERC20FailedOperation(address(token));
         }
@@ -500,7 +573,7 @@ library SafeERC20 {
      * @dev Transfer `value` amount of `token` from `from` to `to`, spending the approval given by `from` to the
      * calling contract. If `token` returns no value, non-reverting calls are assumed to be successful.
      */
-    function safeTransferFrom(IERC20 token, address from, address to, uint256 value) internal {
+    function safeTransferFrom(IERC20_0 token, address from, address to, uint256 value) internal {
         if (!_safeTransferFrom(token, from, to, value, true)) {
             revert SafeERC20FailedOperation(address(token));
         }
@@ -509,14 +582,14 @@ library SafeERC20 {
     /**
      * @dev Variant of {safeTransfer} that returns a bool instead of reverting if the operation is not successful.
      */
-    function trySafeTransfer(IERC20 token, address to, uint256 value) internal returns (bool) {
+    function trySafeTransfer(IERC20_0 token, address to, uint256 value) internal returns (bool) {
         return _safeTransfer(token, to, value, false);
     }
 
     /**
      * @dev Variant of {safeTransferFrom} that returns a bool instead of reverting if the operation is not successful.
      */
-    function trySafeTransferFrom(IERC20 token, address from, address to, uint256 value) internal returns (bool) {
+    function trySafeTransferFrom(IERC20_0 token, address from, address to, uint256 value) internal returns (bool) {
         return _safeTransferFrom(token, from, to, value, false);
     }
 
@@ -529,7 +602,7 @@ library SafeERC20 {
      * this function. Performing a {safeIncreaseAllowance} or {safeDecreaseAllowance} operation on a token contract
      * that has a non-zero temporary allowance (for that particular owner-spender) will result in unexpected behavior.
      */
-    function safeIncreaseAllowance(IERC20 token, address spender, uint256 value) internal {
+    function safeIncreaseAllowance(IERC20_0 token, address spender, uint256 value) internal {
         uint256 oldAllowance = token.allowance(address(this), spender);
         forceApprove(token, spender, oldAllowance + value);
     }
@@ -543,7 +616,7 @@ library SafeERC20 {
      * this function. Performing a {safeIncreaseAllowance} or {safeDecreaseAllowance} operation on a token contract
      * that has a non-zero temporary allowance (for that particular owner-spender) will result in unexpected behavior.
      */
-    function safeDecreaseAllowance(IERC20 token, address spender, uint256 requestedDecrease) internal {
+    function safeDecreaseAllowance(IERC20_0 token, address spender, uint256 requestedDecrease) internal {
         unchecked {
             uint256 currentAllowance = token.allowance(address(this), spender);
             if (currentAllowance < requestedDecrease) {
@@ -562,7 +635,7 @@ library SafeERC20 {
      * only sets the "standard" allowance. Any temporary allowance will remain active, in addition to the value being
      * set here.
      */
-    function forceApprove(IERC20 token, address spender, uint256 value) internal {
+    function forceApprove(IERC20_0 token, address spender, uint256 value) internal {
         if (!_safeApprove(token, spender, value, false)) {
             if (!_safeApprove(token, spender, 0, true)) revert SafeERC20FailedOperation(address(token));
             if (!_safeApprove(token, spender, value, true)) revert SafeERC20FailedOperation(address(token));
@@ -633,8 +706,8 @@ library SafeERC20 {
      * @param value The amount of token to transfer
      * @param bubble Behavior switch if the transfer call reverts: bubble the revert reason or return a false boolean.
      */
-    function _safeTransfer(IERC20 token, address to, uint256 value, bool bubble) private returns (bool success) {
-        bytes4 selector = IERC20.transfer.selector;
+    function _safeTransfer(IERC20_0 token, address to, uint256 value, bool bubble) private returns (bool success) {
+        bytes4 selector = IERC20_0.transfer.selector;
 
         assembly ("memory-safe") {
             let fmp := mload(0x40)
@@ -670,13 +743,13 @@ library SafeERC20 {
      * @param bubble Behavior switch if the transfer call reverts: bubble the revert reason or return a false boolean.
      */
     function _safeTransferFrom(
-        IERC20 token,
+        IERC20_0 token,
         address from,
         address to,
         uint256 value,
         bool bubble
     ) private returns (bool success) {
-        bytes4 selector = IERC20.transferFrom.selector;
+        bytes4 selector = IERC20_0.transferFrom.selector;
 
         assembly ("memory-safe") {
             let fmp := mload(0x40)
@@ -712,8 +785,8 @@ library SafeERC20 {
      * @param value The amount of token to transfer
      * @param bubble Behavior switch if the transfer call reverts: bubble the revert reason or return a false boolean.
      */
-    function _safeApprove(IERC20 token, address spender, uint256 value, bool bubble) private returns (bool success) {
-        bytes4 selector = IERC20.approve.selector;
+    function _safeApprove(IERC20_0 token, address spender, uint256 value, bool bubble) private returns (bool success) {
+        bytes4 selector = IERC20_0.approve.selector;
 
         assembly ("memory-safe") {
             let fmp := mload(0x40)
@@ -741,55 +814,78 @@ library SafeERC20 {
 
 // Staking.sol
 
-interface IALGEBAReward {
-    function mintStakingReward(address to, uint256 amount) external;
-    function remainingStakingEmission() external view returns (uint256);
+interface ILEOEmission {
+    function mintEmission(address to, uint256 amount) external;
+    function remainingEmission() external view returns (uint256);
 }
 
-interface IGenesisFinalized {
-    function finalized() external view returns (bool);
-}
-
-/// @notice Permissionless ALGEBA staking with a global accretion index.
-/// Emission starts at the first successful stake after Genesis is finalized.
-/// No emission is minted while there are no stakers.
+/// @notice Permissionless HELEO staking plus the four ecosystem buckets.
+/// Staking is open from deployment; emission starts automatically EMISSION_DELAY
+/// (24 hours) after deployment, so early stakers all start on equal footing.
+/// Every second of emission is split equally five ways:
+///   1. Stakers  — distributed pro rata through a global accretion index
+///   2. Builder  — community building wallet
+///   3. Coder    — developer wallet
+///   4. Compute  — GPU provider wallet
+///   5. Research — research wallet
+/// The stakers' share for any period with nobody staked is never minted. The four
+/// bucket shares accrue on schedule regardless and are claimed by each bucket's
+/// recipient wallet.
 /// @dev The emission schedule is measured in seconds (block.timestamp), not block
 /// numbers, so each halving lands a fixed wall-clock period apart regardless of
 /// changes to Ethereum's block time or missed slots. On Ethereum mainnet a block's
 /// timestamp is fixed by its slot, so proposers cannot shift it.
 contract Staking is ReentrancyGuard {
-    using SafeERC20 for IERC20;
+    using SafeERC20 for IERC20_0;
+
+    enum Bucket {
+        Builder,
+        Coder,
+        Compute,
+        Research
+    }
 
     uint256 public constant PRECISION = 1e36;
-    uint256 public constant GENESIS_ALLOCATION = 50 ether;
-    // Halving series (FIRST_EPOCH_EMISSION * 2) asymptotically sums to MAX_SUPPLY / 2
-    // = 210,000,000, slightly above TOTAL_EMISSION (209,999,950 — reserves 50 AGB for
-    // Genesis). emissionBetween()'s `remaining` clamp caps the tail of the schedule at
-    // TOTAL_EMISSION regardless, so the cap is always respected either way.
-    uint256 public constant FIRST_EPOCH_EMISSION = 105_000_000 ether;
-    uint256 public constant TOTAL_EMISSION = 209_999_950 ether;
+    uint256 public constant GENESIS_ALLOCATION = 21_000_000 ether;
+    // Halving series (FIRST_EPOCH_EMISSION * 2) asymptotically sums to
+    // TOTAL_EMISSION and never quite reaches it under integer halving;
+    // scheduledEmission() also clamps at TOTAL_EMISSION, so the cap always holds.
+    uint256 public constant FIRST_EPOCH_EMISSION = 10_500_000 ether;
+    uint256 public constant TOTAL_EMISSION = 21_000_000 ether;
     uint256 public constant MAX_EPOCHS = 256;
+    /// @notice Stakers + Builder + Coder + Compute + Research.
+    uint256 public constant BUCKET_COUNT = 5;
+    uint256 public constant ECOSYSTEM_BUCKETS = 4;
+    /// @notice Delay between deployment and the start of emission.
+    uint256 public constant EMISSION_DELAY = 24 hours;
     // Every position is either 0 or >= MIN_STAKE, so totalStaked is either 0 or
     // >= MIN_STAKE whenever _update() divides by it. That bounds accRewardPerShare
-    // for the contract's whole life at TOTAL_EMISSION * PRECISION / MIN_STAKE
-    // (~2.1e44), and any position (<= 2.1e26) times that index stays ~2.6 million
-    // times below 2^256. Without it, a 1-wei sole staker could inflate the index
-    // until normal-sized stakes overflow and revert forever.
+    // for the contract's whole life at (TOTAL_EMISSION / 5) * PRECISION / MIN_STAKE
+    // (~4.2e42), and any position (<= 4.2e25) times that index stays far below
+    // 2^256. Without it, a 1-wei sole staker could inflate the index until
+    // normal-sized stakes overflow and revert forever.
     uint256 public constant MIN_STAKE = 1 ether;
 
-    IERC20 public immutable token;
-    IALGEBAReward public immutable rewardToken;
-    IGenesisFinalized public immutable genesis;
+    IERC20_0 public immutable token;
+    ILEOEmission public immutable rewardToken;
     /// @notice Length of each halving epoch, in seconds.
     uint256 public immutable halvingPeriod;
+    /// @notice Emission start: deployment time + EMISSION_DELAY.
+    uint256 public immutable startTime;
 
-    // Never 0 once emission has started: Genesis can only finalize at a timestamp
-    // >= its (nonzero) duration, and staking requires Genesis to be finalized.
-    uint256 public startTime;
     uint256 public totalStaked;
     uint256 public accRewardPerShare;
     uint256 public lastUpdateTime;
-    uint256 public totalEmitted;
+    /// @notice scheduledEmission() value already split up by _update().
+    uint256 public lastScheduled;
+    /// @notice Stakers' share credited to the reward index so far.
+    uint256 public stakerEmitted;
+    /// @notice Stakers' share skipped because nobody was staked. Never minted.
+    uint256 public stakerForfeited;
+
+    address[4] public bucketRecipient;
+    address[4] public pendingBucketRecipient;
+    uint256[4] public bucketClaimed;
 
     struct UserInfo {
         uint256 amount;
@@ -804,40 +900,47 @@ contract Staking is ReentrancyGuard {
     event Compounded(address indexed user, uint256 reward, uint256 newStake);
     event Unstaked(address indexed user, uint256 principal, uint256 reward);
     event EmergencyWithdrawn(address indexed user, uint256 principal, uint256 forfeitedRewards);
-    event EmissionStarted(uint256 indexed startTime);
     event IndexUpdated(uint256 fromTime, uint256 toTime, uint256 emission, uint256 index);
+    event StakerShareForfeited(uint256 fromTime, uint256 toTime, uint256 amount);
+    event BucketClaimed(Bucket indexed bucket, address indexed recipient, uint256 amount);
+    event BucketRecipientProposed(Bucket indexed bucket, address indexed current, address indexed proposed);
+    event BucketRecipientChanged(Bucket indexed bucket, address indexed previous, address indexed current);
 
     error ZeroAmount();
     error InsufficientStake();
     error BelowMinimumStake();
     error NoReward();
     error InvalidHalvingPeriod();
-    error GenesisNotFinalized();
+    error InvalidAddress();
+    error NotBucketRecipient();
+    error NotPendingRecipient();
 
     /// @param halvingPeriod_ Seconds per halving epoch (4 years = 126_230_400).
-    constructor(address token_, address genesis_, uint256 halvingPeriod_) {
-        require(token_ != address(0) && genesis_ != address(0), "zero address");
+    /// @param recipients_ Initial wallets for Builder, Coder, Compute, Research.
+    constructor(address token_, uint256 halvingPeriod_, address[4] memory recipients_) {
+        if (token_ == address(0)) revert InvalidAddress();
         if (halvingPeriod_ == 0) revert InvalidHalvingPeriod();
-        token = IERC20(token_);
-        rewardToken = IALGEBAReward(token_);
-        genesis = IGenesisFinalized(genesis_);
+        for (uint256 i = 0; i < ECOSYSTEM_BUCKETS; ++i) {
+            if (recipients_[i] == address(0)) revert InvalidAddress();
+        }
+        token = IERC20_0(token_);
+        rewardToken = ILEOEmission(token_);
         halvingPeriod = halvingPeriod_;
+        startTime = block.timestamp + EMISSION_DELAY;
+        lastUpdateTime = startTime;
+        bucketRecipient = recipients_;
     }
+
+    // ---------------------------------------------------------------------
+    // Staking
+    // ---------------------------------------------------------------------
 
     function stake(uint256 amount) external nonReentrant {
         if (amount == 0) revert ZeroAmount();
         UserInfo storage u = users[msg.sender];
         if (u.amount + amount < MIN_STAKE) revert BelowMinimumStake();
 
-        if (startTime == 0) {
-            if (!genesis.finalized()) revert GenesisNotFinalized();
-            startTime = block.timestamp;
-            lastUpdateTime = block.timestamp;
-            emit EmissionStarted(block.timestamp);
-        } else {
-            _update();
-        }
-
+        _update();
         _settle(u);
         token.safeTransferFrom(msg.sender, address(this), amount);
         u.amount += amount;
@@ -854,7 +957,7 @@ contract Staking is ReentrancyGuard {
         if (reward == 0) revert NoReward();
         u.rewards = 0;
         reward = _capToMintable(reward);
-        if (reward > 0) rewardToken.mintStakingReward(msg.sender, reward);
+        if (reward > 0) rewardToken.mintEmission(msg.sender, reward);
         emit Claimed(msg.sender, reward);
     }
 
@@ -869,7 +972,7 @@ contract Staking is ReentrancyGuard {
         u.amount += reward;
         totalStaked += reward;
         u.rewardDebt = u.amount * accRewardPerShare / PRECISION;
-        if (reward > 0) rewardToken.mintStakingReward(address(this), reward);
+        if (reward > 0) rewardToken.mintEmission(address(this), reward);
         emit Compounded(msg.sender, reward, u.amount);
     }
 
@@ -889,7 +992,7 @@ contract Staking is ReentrancyGuard {
         u.rewardDebt = u.amount * accRewardPerShare / PRECISION;
 
         reward = _capToMintable(reward);
-        if (reward > 0) rewardToken.mintStakingReward(address(this), reward);
+        if (reward > 0) rewardToken.mintEmission(address(this), reward);
         token.safeTransfer(msg.sender, amount + reward);
         emit Unstaked(msg.sender, amount, reward);
     }
@@ -913,6 +1016,52 @@ contract Staking is ReentrancyGuard {
         emit EmergencyWithdrawn(msg.sender, amount, forfeited);
     }
 
+    // ---------------------------------------------------------------------
+    // Ecosystem buckets
+    // ---------------------------------------------------------------------
+
+    /// @notice Mints everything the bucket has accrued so far to its recipient.
+    /// Only the bucket's current recipient can call this.
+    function claimBucket(Bucket bucket) external nonReentrant returns (uint256 amount) {
+        uint256 i = uint256(bucket);
+        address recipient = bucketRecipient[i];
+        if (msg.sender != recipient) revert NotBucketRecipient();
+        amount = bucketClaimable(bucket);
+        if (amount == 0) revert NoReward();
+        bucketClaimed[i] += amount;
+        amount = _capToMintable(amount);
+        if (amount > 0) rewardToken.mintEmission(recipient, amount);
+        emit BucketClaimed(bucket, recipient, amount);
+    }
+
+    /// @notice Step 1 of handing a bucket to a new wallet. Only the current
+    /// recipient can propose; pass address(0) to cancel a pending proposal.
+    function proposeBucketRecipient(Bucket bucket, address newRecipient) external {
+        uint256 i = uint256(bucket);
+        if (msg.sender != bucketRecipient[i]) revert NotBucketRecipient();
+        pendingBucketRecipient[i] = newRecipient;
+        emit BucketRecipientProposed(bucket, msg.sender, newRecipient);
+    }
+
+    /// @notice Step 2: the proposed wallet accepts, proving it can sign. Anything
+    /// the bucket has accrued but not yet claimed moves with it.
+    function acceptBucketRecipient(Bucket bucket) external {
+        uint256 i = uint256(bucket);
+        if (msg.sender != pendingBucketRecipient[i] || msg.sender == address(0)) revert NotPendingRecipient();
+        address previous = bucketRecipient[i];
+        bucketRecipient[i] = msg.sender;
+        pendingBucketRecipient[i] = address(0);
+        emit BucketRecipientChanged(bucket, previous, msg.sender);
+    }
+
+    function bucketClaimable(Bucket bucket) public view returns (uint256) {
+        return scheduledEmission(block.timestamp) / BUCKET_COUNT - bucketClaimed[uint256(bucket)];
+    }
+
+    // ---------------------------------------------------------------------
+    // Views
+    // ---------------------------------------------------------------------
+
     function pendingReward(address account) external view returns (uint256) {
         UserInfo memory u = users[account];
         uint256 index = previewIndex();
@@ -922,91 +1071,105 @@ contract Staking is ReentrancyGuard {
     }
 
     function previewIndex() public view returns (uint256) {
-        if (startTime == 0 || totalStaked == 0 || block.timestamp <= lastUpdateTime) return accRewardPerShare;
-        uint256 emission = emissionBetween(lastUpdateTime, block.timestamp);
-        if (emission == 0) return accRewardPerShare;
-        return accRewardPerShare + emission * PRECISION / totalStaked;
+        if (totalStaked == 0 || block.timestamp <= lastUpdateTime) return accRewardPerShare;
+        uint256 share = (scheduledEmission(block.timestamp) - lastScheduled) / BUCKET_COUNT;
+        if (share == 0) return accRewardPerShare;
+        return accRewardPerShare + share * PRECISION / totalStaked;
     }
 
     /// @notice Read-only supply projection: genesis allocation + everything the
-    /// halving schedule says has emitted so far, free to read. The real ERC20
-    /// totalSupply() on ALGEBA always remains the actual minted supply — this is
-    /// only ever a schedule-based projection.
+    /// halving schedule has made claimable so far (all four bucket shares, plus
+    /// the stakers' share for every period someone was staked), free to read. The
+    /// real ERC20 totalSupply() on LEO always remains the actual minted supply —
+    /// this is only ever a schedule-based projection.
     function emittedSupply() external view returns (uint256) {
-        uint256 preview = (startTime != 0 && totalStaked != 0)
-            ? emissionBetween(lastUpdateTime, block.timestamp)
-            : 0;
-        return GENESIS_ALLOCATION + totalEmitted + preview;
+        uint256 scheduled = scheduledEmission(block.timestamp);
+        uint256 stakers = stakerEmitted;
+        if (totalStaked != 0 && scheduled > lastScheduled) {
+            stakers += (scheduled - lastScheduled) / BUCKET_COUNT;
+        }
+        return GENESIS_ALLOCATION + (scheduled / BUCKET_COUNT) * ECOSYSTEM_BUCKETS + stakers;
+    }
+
+    function emissionStarted() public view returns (bool) {
+        return block.timestamp >= startTime;
     }
 
     function currentEpoch() public view returns (uint256) {
-        if (startTime == 0 || block.timestamp < startTime) return 0;
+        if (block.timestamp < startTime) return 0;
         return (block.timestamp - startTime) / halvingPeriod;
     }
 
+    /// @notice Total emission per second across all five buckets. Each bucket
+    /// (including stakers as a group) receives one fifth of this.
     function currentEmissionPerSecond() public view returns (uint256) {
-        if (startTime == 0) return 0;
+        if (block.timestamp < startTime) return 0;
         uint256 epoch = currentEpoch();
         if (epoch >= MAX_EPOCHS) return 0;
         return (FIRST_EPOCH_EMISSION >> epoch) / halvingPeriod;
     }
 
     function nextHalvingTime() public view returns (uint256) {
-        if (startTime == 0) return 0;
         return startTime + (currentEpoch() + 1) * halvingPeriod;
     }
 
-    function emissionBetween(uint256 fromTime, uint256 toTime) public view returns (uint256 total) {
-        if (startTime == 0 || toTime <= fromTime || totalEmitted >= TOTAL_EMISSION || toTime <= startTime) return 0;
-        if (fromTime < startTime) fromTime = startTime;
-
-        uint256 cursor = fromTime;
-        uint256 remaining = TOTAL_EMISSION - totalEmitted;
+    /// @notice Cumulative emission (all five buckets) the schedule has released
+    /// from startTime up to `time`. A pure function of time.
+    function scheduledEmission(uint256 time) public view returns (uint256 total) {
+        if (time <= startTime) return 0;
+        uint256 elapsed = time - startTime;
+        uint256 fullEpochs = elapsed / halvingPeriod;
 
         // Bounded by the number of halvings, never by elapsed time or number of users.
-        for (uint256 i = 0; i < MAX_EPOCHS && cursor < toTime; ++i) {
-            uint256 epoch = (cursor - startTime) / halvingPeriod;
-            if (epoch >= MAX_EPOCHS) break;
-
-            uint256 epochEmission = FIRST_EPOCH_EMISSION >> epoch;
+        for (uint256 e = 0; e < fullEpochs && e < MAX_EPOCHS; ++e) {
+            uint256 epochEmission = FIRST_EPOCH_EMISSION >> e;
             if (epochEmission == 0) break;
-
-            uint256 epochEnd = startTime + (epoch + 1) * halvingPeriod;
-            uint256 end = toTime < epochEnd ? toTime : epochEnd;
-            uint256 portion = epochEmission * (end - cursor) / halvingPeriod;
-            total += portion;
-            cursor = end;
-
-            if (total >= remaining) return remaining;
+            total += epochEmission;
+        }
+        if (fullEpochs < MAX_EPOCHS) {
+            total += (FIRST_EPOCH_EMISSION >> fullEpochs) * (elapsed % halvingPeriod) / halvingPeriod;
         }
 
-        return total > remaining ? remaining : total;
+        return total > TOTAL_EMISSION ? TOTAL_EMISSION : total;
     }
 
+    /// @notice Total emission (all five buckets) released between two times.
+    function emissionBetween(uint256 fromTime, uint256 toTime) public view returns (uint256) {
+        if (toTime <= fromTime) return 0;
+        return scheduledEmission(toTime) - scheduledEmission(fromTime);
+    }
+
+    // ---------------------------------------------------------------------
+    // Internal
+    // ---------------------------------------------------------------------
+
     function _update() internal {
-        if (startTime == 0 || block.timestamp <= lastUpdateTime) return;
+        if (block.timestamp <= lastUpdateTime) return;
 
-        if (totalStaked == 0) {
-            // Idle periods are permanently missed. They are not assigned to later stakers.
-            lastUpdateTime = block.timestamp;
-            return;
-        }
-
-        uint256 emission = emissionBetween(lastUpdateTime, block.timestamp);
-        if (emission > 0) {
-            totalEmitted += emission;
-            accRewardPerShare += emission * PRECISION / totalStaked;
-            emit IndexUpdated(lastUpdateTime, block.timestamp, emission, accRewardPerShare);
+        uint256 scheduled = scheduledEmission(block.timestamp);
+        uint256 share = (scheduled - lastScheduled) / BUCKET_COUNT;
+        if (share > 0) {
+            if (totalStaked == 0) {
+                // Idle periods are permanently missed. They are not assigned to later stakers.
+                stakerForfeited += share;
+                emit StakerShareForfeited(lastUpdateTime, block.timestamp, share);
+            } else {
+                stakerEmitted += share;
+                accRewardPerShare += share * PRECISION / totalStaked;
+                emit IndexUpdated(lastUpdateTime, block.timestamp, share, accRewardPerShare);
+            }
+            // Advance by exactly what was split so the sub-5-wei remainder carries over.
+            lastScheduled += share * BUCKET_COUNT;
         }
         lastUpdateTime = block.timestamp;
     }
 
     /// @dev Floor rounding in per-user accounting can leave total owed rewards a
-    /// few wei above what ALGEBA can still mint once emission is exhausted.
-    /// Paying the excess would revert in mintStakingReward and, inside
-    /// unstake(), trap principal. The unmintable dust is forfeited instead.
+    /// few wei above what LEO can still mint once emission is exhausted.
+    /// Paying the excess would revert in mintEmission and, inside unstake(),
+    /// trap principal. The unmintable dust is forfeited instead.
     function _capToMintable(uint256 reward) internal view returns (uint256) {
-        uint256 mintable = rewardToken.remainingStakingEmission();
+        uint256 mintable = rewardToken.remainingEmission();
         return reward > mintable ? mintable : reward;
     }
 

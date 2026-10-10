@@ -15,8 +15,3 @@ remappings = [
 
 allow_paths = ["../frontend/node_modules"]
 
-# Enables test/helpers/FfiMerkleTree.sol to shell out to the real
-# @openzeppelin/merkle-tree JS library, so Merkle tests validate against the
-# same tool used at deploy time (scripts/build-genesis-whitelist.mjs) rather
-# than a hand-rolled Solidity reimplementation that could silently diverge.
-ffi = true

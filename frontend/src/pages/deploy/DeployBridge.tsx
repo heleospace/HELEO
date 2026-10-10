@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { createPublicClient, createWalletClient, custom, http, pad, isAddress } from 'viem';
 import { sepolia, baseSepolia } from 'viem/chains';
-import AGBOFTAdapterArtifact from '../../contracts-artifacts/AGBOFTAdapter.json';
-import AGBOFTArtifact from '../../contracts-artifacts/AGBOFT.json';
+import LEOOFTAdapterArtifact from '../../contracts-artifacts/LEOOFTAdapter.json';
+import LEOOFTArtifact from '../../contracts-artifacts/LEOOFT.json';
 import { CONTRACTS } from '../../config/contracts';
 import { LZ_EID, LZ_ENDPOINT_DEFAULTS } from '../../config/bridge';
 import { StepShell, CopyButton, AddressCard, TxLine, type StepStatus } from './shared';
@@ -14,15 +14,15 @@ const baseSepoliaPublicClient = createPublicClient({ chain: baseSepolia, transpo
 const BASE_SEPOLIA_EXPLORER = 'https://sepolia.basescan.org';
 
 export function DeployBridge({ walletAddress }: { walletAddress: string }) {
-  const [algebaAddress, setAlgebaAddress] = useState(CONTRACTS.ALGEBA || '');
+  const [leoAddress, setLeoAddress] = useState(CONTRACTS.LEO || '');
   const [sepoliaEndpoint, setSepoliaEndpoint] = useState<string>(LZ_ENDPOINT_DEFAULTS.SEPOLIA);
   const [adapterAddress, setAdapterAddress] = useState<string | null>(null);
   const [adapterTx, setAdapterTx] = useState<string | null>(null);
   const [adapterStatus, setAdapterStatus] = useState<StepStatus>('active');
   const [adapterError, setAdapterError] = useState<string | null>(null);
 
-  const [oftName, setOftName] = useState('ALGEBA');
-  const [oftSymbol, setOftSymbol] = useState('AGB');
+  const [oftName, setOftName] = useState('HELEO');
+  const [oftSymbol, setOftSymbol] = useState('LEO');
   const [baseSepoliaEndpoint, setBaseSepoliaEndpoint] = useState<string>(LZ_ENDPOINT_DEFAULTS.BASE_SEPOLIA);
   const [oftAddress, setOftAddress] = useState<string | null>(null);
   const [oftTx, setOftTx] = useState<string | null>(null);
@@ -38,7 +38,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
   const [peerBaseSepoliaError, setPeerBaseSepoliaError] = useState<string | null>(null);
 
   const deployAdapter = async () => {
-    if (!walletAddress || !isAddress(algebaAddress) || !isAddress(sepoliaEndpoint)) return;
+    if (!walletAddress || !isAddress(leoAddress) || !isAddress(sepoliaEndpoint)) return;
     setAdapterStatus('pending');
     setAdapterError(null);
     try {
@@ -46,9 +46,9 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
       const walletClient = createWalletClient({ chain: sepolia, transport: custom(window.ethereum) });
       const hash = await walletClient.deployContract({
         account: walletAddress as `0x${string}`,
-        abi: AGBOFTAdapterArtifact.abi,
-        bytecode: AGBOFTAdapterArtifact.bytecode as `0x${string}`,
-        args: [algebaAddress, sepoliaEndpoint, walletAddress],
+        abi: LEOOFTAdapterArtifact.abi,
+        bytecode: LEOOFTAdapterArtifact.bytecode as `0x${string}`,
+        args: [leoAddress, sepoliaEndpoint, walletAddress],
       });
       setAdapterTx(hash);
       const receipt = await sepoliaPublicClient.waitForTransactionReceipt({ hash });
@@ -57,7 +57,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
       setAdapterStatus('done');
       setOftStatus('active');
     } catch (err) {
-      console.error('AGBOFTAdapter deploy failed:', err);
+      console.error('LEOOFTAdapter deploy failed:', err);
       setAdapterError(err instanceof Error ? err.message : 'Deployment failed');
       setAdapterStatus('error');
     }
@@ -72,8 +72,8 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
       const walletClient = createWalletClient({ chain: baseSepolia, transport: custom(window.ethereum) });
       const hash = await walletClient.deployContract({
         account: walletAddress as `0x${string}`,
-        abi: AGBOFTArtifact.abi,
-        bytecode: AGBOFTArtifact.bytecode as `0x${string}`,
+        abi: LEOOFTArtifact.abi,
+        bytecode: LEOOFTArtifact.bytecode as `0x${string}`,
         args: [oftName, oftSymbol, baseSepoliaEndpoint, walletAddress],
       });
       setOftTx(hash);
@@ -83,7 +83,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
       setOftStatus('done');
       setPeerSepoliaStatus('active');
     } catch (err) {
-      console.error('AGBOFT deploy failed:', err);
+      console.error('LEOOFT deploy failed:', err);
       setOftError(err instanceof Error ? err.message : 'Deployment failed');
       setOftStatus('error');
     }
@@ -99,7 +99,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
       const hash = await walletClient.writeContract({
         account: walletAddress as `0x${string}`,
         address: adapterAddress as `0x${string}`,
-        abi: AGBOFTAdapterArtifact.abi,
+        abi: LEOOFTAdapterArtifact.abi,
         functionName: 'setPeer',
         args: [LZ_EID.BASE_SEPOLIA, pad(oftAddress as `0x${string}`, { size: 32 })],
       });
@@ -124,7 +124,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
       const hash = await walletClient.writeContract({
         account: walletAddress as `0x${string}`,
         address: oftAddress as `0x${string}`,
-        abi: AGBOFTArtifact.abi,
+        abi: LEOOFTArtifact.abi,
         functionName: 'setPeer',
         args: [LZ_EID.SEPOLIA, pad(adapterAddress as `0x${string}`, { size: 32 })],
       });
@@ -147,13 +147,13 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
         your wallet will prompt you to switch between Sepolia and Base Sepolia as needed.
       </div>
 
-      <StepShell number={1} title="Deploy AGBOFTAdapter (Sepolia)" status={adapterStatus}>
-        <p className="text-muted">Locks AGB here when bridging out to Base Sepolia, releases it when bridging back in.</p>
-        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">ALGEBA Token Address</label>
+      <StepShell number={1} title="Deploy LEOOFTAdapter (Sepolia)" status={adapterStatus}>
+        <p className="text-muted">Locks LEO here when bridging out to Base Sepolia, releases it when bridging back in.</p>
+        <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">HELEO Token Address</label>
         <input
           type="text"
-          value={algebaAddress}
-          onChange={(e) => setAlgebaAddress(e.target.value)}
+          value={leoAddress}
+          onChange={(e) => setLeoAddress(e.target.value)}
           disabled={adapterStatus === 'done' || adapterStatus === 'pending'}
           placeholder="0x..."
         />
@@ -174,10 +174,10 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
         {adapterStatus !== 'done' && (
           <button
             onClick={deployAdapter}
-            disabled={adapterStatus === 'pending' || !isAddress(algebaAddress || '') || !isAddress(sepoliaEndpoint || '')}
+            disabled={adapterStatus === 'pending' || !isAddress(leoAddress || '') || !isAddress(sepoliaEndpoint || '')}
             className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
           >
-            {adapterStatus === 'pending' ? 'Confirming...' : 'Deploy AGBOFTAdapter'}
+            {adapterStatus === 'pending' ? 'Confirming...' : 'Deploy LEOOFTAdapter'}
           </button>
         )}
         {adapterError && <p className="text-xs text-navy mt-1">{adapterError}</p>}
@@ -185,8 +185,8 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
         {adapterAddress && <AddressCard address={adapterAddress} />}
       </StepShell>
 
-      <StepShell number={2} title="Deploy AGBOFT (Base Sepolia)" status={oftStatus}>
-        <p className="text-muted">Mint/burn representation of bridged AGB. Your wallet will prompt you to switch to Base Sepolia.</p>
+      <StepShell number={2} title="Deploy LEOOFT (Base Sepolia)" status={oftStatus}>
+        <p className="text-muted">Mint/burn representation of bridged LEO. Your wallet will prompt you to switch to Base Sepolia.</p>
         <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">Name</label>
         <input
           type="text"
@@ -221,7 +221,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
             disabled={oftStatus === 'pending' || !isAddress(baseSepoliaEndpoint || '')}
             className="w-full btn btn-primary py-3 font-semibold disabled:opacity-50 mt-2"
           >
-            {oftStatus === 'pending' ? 'Confirming...' : 'Switch to Base Sepolia & Deploy AGBOFT'}
+            {oftStatus === 'pending' ? 'Confirming...' : 'Switch to Base Sepolia & Deploy LEOOFT'}
           </button>
         )}
         {oftError && <p className="text-xs text-navy mt-1">{oftError}</p>}
@@ -231,7 +231,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
 
       <StepShell number={3} title="Wire Peer: Sepolia → Base Sepolia" status={peerSepoliaStatus}>
         <p className="text-muted">
-          Calls <code className="bg-surface px-1 rounded-sm">AGBOFTAdapter.setPeer(baseSepoliaEid, oftAddress)</code> on Sepolia,
+          Calls <code className="bg-surface px-1 rounded-sm">LEOOFTAdapter.setPeer(baseSepoliaEid, oftAddress)</code> on Sepolia,
           authorizing messages from the Base Sepolia OFT.
         </p>
         {peerSepoliaStatus !== 'done' && peerSepoliaStatus !== 'locked' && (
@@ -249,7 +249,7 @@ export function DeployBridge({ walletAddress }: { walletAddress: string }) {
 
       <StepShell number={4} title="Wire Peer: Base Sepolia → Sepolia" status={peerBaseSepoliaStatus}>
         <p className="text-muted">
-          Calls <code className="bg-surface px-1 rounded-sm">AGBOFT.setPeer(sepoliaEid, adapterAddress)</code> on Base Sepolia,
+          Calls <code className="bg-surface px-1 rounded-sm">LEOOFT.setPeer(sepoliaEid, adapterAddress)</code> on Base Sepolia,
           authorizing messages from the Sepolia adapter. Both directions must be wired for bridging to work.
         </p>
         {peerBaseSepoliaStatus !== 'done' && peerBaseSepoliaStatus !== 'locked' && (

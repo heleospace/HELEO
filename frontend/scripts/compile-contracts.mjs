@@ -8,7 +8,7 @@ const ROOT = path.resolve(__dirname, '..');
 const CONTRACTS_DIR = path.resolve(ROOT, '../Contracts');
 const OUT_DIR = path.resolve(ROOT, 'src/contracts-artifacts');
 
-const CONTRACT_FILES = ['ALGEBA.sol', 'Genesis.sol', 'Staking.sol', 'AGBOFTAdapter.sol', 'AGBOFT.sol'];
+const CONTRACT_FILES = ['LEO.sol', 'Staking.sol', 'LEOOFTAdapter.sol', 'LEOOFT.sol'];
 
 function findImport(importPath) {
   try {

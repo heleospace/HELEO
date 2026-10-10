@@ -6,12 +6,11 @@ import { useNetwork } from '../context/NetworkContext';
 import { NETWORKS, type NetworkKey } from '../config/networks';
 import { ensureChain } from '../utils/chainSwitch';
 import { formatAddress } from '../utils/formatting';
-import logoAlgeba from '../assets/logo-algeba.png';
+import logoHELEO from '../assets/logo-heleo.png';
 
 const NAV_LINKS = [
   { to: '/', label: 'Home', end: true },
-  { to: '/genesis', label: 'Genesis' },
-  { to: '/bridge', label: 'Bridge' },
+  // { to: '/bridge', label: 'Bridge' }, // temporarily hidden
   { to: '/whitepaper', label: 'Whitepaper' },
 ];
 
@@ -59,8 +58,8 @@ export function Header() {
           {/* Logo Section */}
           <div className="flex items-center gap-3 flex-shrink-0">
             <img
-              src={logoAlgeba}
-              alt="ALGEBA"
+              src={logoHELEO}
+              alt="HELEO"
               className="h-8 w-auto"
             />
           </div>

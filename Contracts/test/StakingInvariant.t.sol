@@ -2,10 +2,8 @@
 pragma solidity ^0.8.24;
 
 import {Test} from "forge-std/Test.sol";
-import {ALGEBA} from "../ALGEBA.sol";
-import {Genesis} from "../Genesis.sol";
+import {LEO} from "../LEO.sol";
 import {Staking} from "../Staking.sol";
-import {FfiMerkleTree} from "./helpers/FfiMerkleTree.sol";
 
 /// @dev Stateful-fuzzing handler: the invariant runner calls these functions in
 /// random sequences with random arguments, then checks the invariants below still
@@ -13,16 +11,16 @@ import {FfiMerkleTree} from "./helpers/FfiMerkleTree.sol";
 /// swallowed here (e.g. staking 0, unstaking more than you have) — the point is
 /// to keep the sequence going, not to avoid every revert.
 contract StakingInvariantHandler is Test {
-    ALGEBA public algeba;
-    Genesis public genesis;
+    LEO public leo;
     Staking public staking;
     address[] public actors;
+    address[4] public recipients;
 
-    constructor(ALGEBA _algeba, Genesis _genesis, Staking _staking, address[] memory _actors) {
-        algeba = _algeba;
-        genesis = _genesis;
+    constructor(LEO _leo, Staking _staking, address[] memory _actors, address[4] memory _recipients) {
+        leo = _leo;
         staking = _staking;
         actors = _actors;
+        recipients = _recipients;
     }
 
     // Exits are never allowed to fail silently: a full unstake or emergency
@@ -32,13 +30,13 @@ contract StakingInvariantHandler is Test {
 
     function stake(uint256 actorSeed, uint256 amount) public {
         address who = actors[actorSeed % actors.length];
-        uint256 bal = algeba.balanceOf(who);
+        uint256 bal = leo.balanceOf(who);
         (uint256 staked,,) = staking.users(who);
         uint256 minAmount = staked == 0 ? staking.MIN_STAKE() : 1;
         if (bal < minAmount) return;
         amount = bound(amount, minAmount, bal);
         vm.startPrank(who);
-        algeba.approve(address(staking), amount);
+        leo.approve(address(staking), amount);
         try staking.stake(amount) {} catch {}
         vm.stopPrank();
     }
@@ -82,6 +80,13 @@ contract StakingInvariantHandler is Test {
         vm.stopPrank();
     }
 
+    function claimBucket(uint256 bucketSeed) public {
+        uint256 b = bucketSeed % 4;
+        vm.startPrank(recipients[b]);
+        try staking.claimBucket(Staking.Bucket(b)) {} catch {}
+        vm.stopPrank();
+    }
+
     function warpTime(uint256 seconds_) public {
         seconds_ = bound(seconds_, 1, 5000);
         vm.warp(block.timestamp + seconds_);
@@ -97,41 +102,22 @@ contract StakingInvariantHandler is Test {
 }
 
 contract StakingInvariantTest is Test {
-    ALGEBA algeba;
-    Genesis genesis;
+    LEO leo;
     Staking staking;
     StakingInvariantHandler handler;
     address[] actors;
 
     function setUp() public {
-        algeba = new ALGEBA(address(this));
+        address[9] memory contributors;
+        for (uint256 i = 0; i < 9; i++) contributors[i] = address(uint160(0x9000 + i));
+        leo = new LEO(contributors);
+        for (uint256 i = 0; i < 5; i++) actors.push(contributors[i]);
 
-        address[] memory whitelist = new address[](5);
-        for (uint256 i = 0; i < 5; i++) {
-            whitelist[i] = address(uint160(0x9000 + i));
-        }
-        (bytes32 root, bytes32[][] memory proofs) = FfiMerkleTree.build(whitelist);
+        address[4] memory recipients = [address(0xB1), address(0xC0), address(0xC1), address(0xE5)];
+        staking = new Staking(address(leo), 500, recipients);
+        leo.setStaking(address(staking));
 
-        genesis = new Genesis(address(algeba), 1, root);
-        algeba.transfer(address(genesis), algeba.GENESIS_ALLOCATION());
-
-        for (uint256 i = 0; i < 5; i++) {
-            actors.push(whitelist[i]);
-            vm.prank(whitelist[i]);
-            genesis.participate(proofs[i]);
-        }
-
-        vm.warp(block.timestamp + 2);
-        genesis.finalize();
-        for (uint256 i = 0; i < actors.length; i++) {
-            vm.prank(actors[i]);
-            genesis.claim();
-        }
-
-        staking = new Staking(address(algeba), address(genesis), 500);
-        algeba.setStaking(address(staking));
-
-        handler = new StakingInvariantHandler(algeba, genesis, staking, actors);
+        handler = new StakingInvariantHandler(leo, staking, actors, recipients);
         targetContract(address(handler));
     }
 
@@ -146,24 +132,27 @@ contract StakingInvariantTest is Test {
         assertEq(sum, staking.totalStaked());
     }
 
-    /// @dev The contract must always hold enough AGB to cover every staker's
+    /// @dev The contract must always hold enough LEO to cover every staker's
     /// principal — it can never become insolvent for what users are owed back.
     function invariant_contractSolventForPrincipal() public view {
-        assertGe(algeba.balanceOf(address(staking)), staking.totalStaked());
+        assertGe(leo.balanceOf(address(staking)), staking.totalStaked());
     }
 
-    /// @dev The halving schedule's cumulative emission can never exceed the
-    /// contract's own hard cap, regardless of how staking/unstaking is timed.
-    function invariant_totalEmittedNeverExceedsCap() public view {
-        assertLe(staking.totalEmitted(), staking.TOTAL_EMISSION());
+    /// @dev Stakers' credited + forfeited share can never exceed one fifth of
+    /// the schedule, and each bucket can never claim more than its fifth.
+    function invariant_fiveWaySplitNeverExceedsSchedule() public view {
+        uint256 fifth = staking.scheduledEmission(block.timestamp) / staking.BUCKET_COUNT();
+        assertLe(staking.stakerEmitted() + staking.stakerForfeited(), fifth);
+        for (uint256 i = 0; i < 4; i++) assertLe(staking.bucketClaimed(i), fifth);
     }
 
-    /// @dev ALGEBA's own hard cap must hold regardless of what Staking does.
-    function invariant_algebaSupplyNeverExceedsMaxSupply() public view {
-        assertLe(algeba.totalSupply(), algeba.MAX_SUPPLY());
+    /// @dev LEO's own hard caps must hold regardless of what Staking does.
+    function invariant_leoSupplyNeverExceedsMaxSupply() public view {
+        assertLe(leo.totalSupply(), leo.MAX_SUPPLY());
+        assertLe(leo.emissionMinted(), leo.EMISSION_ALLOCATION());
     }
 
-    /// @dev AGB-05: no position can ever sit between 0 and MIN_STAKE, which is
+    /// @dev no position can ever sit between 0 and MIN_STAKE, which is
     /// what keeps accRewardPerShare bounded for the contract's whole life.
     function invariant_positionsAreZeroOrAboveMinimum() public view {
         for (uint256 i = 0; i < handler.actorCount(); i++) {
@@ -172,7 +161,7 @@ contract StakingInvariantTest is Test {
         }
     }
 
-    /// @dev AGB-06: a staker can always get their principal back, via a full
+    /// @dev a staker can always get their principal back, via a full
     /// unstake or the emergency exit, at any point in any random sequence.
     function invariant_exitsNeverRevert() public view {
         assertEq(handler.exitFailures(), 0);

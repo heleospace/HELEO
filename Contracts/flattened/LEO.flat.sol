@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.4.16 >=0.6.2 >=0.8.4 ^0.8.20 ^0.8.24;
 
-// @openzeppelin/contracts/utils/Context.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/utils/Context.sol
 
 // OpenZeppelin Contracts (last updated v5.0.1) (utils/Context.sol)
 
@@ -29,7 +29,7 @@ abstract contract Context {
     }
 }
 
-// @openzeppelin/contracts/token/ERC20/IERC20.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/token/ERC20/IERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/IERC20.sol)
 
@@ -108,7 +108,7 @@ interface IERC20 {
     function transferFrom(address from, address to, uint256 value) external returns (bool);
 }
 
-// @openzeppelin/contracts/interfaces/draft-IERC6093.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/interfaces/draft-IERC6093.sol
 
 // OpenZeppelin Contracts (last updated v5.5.0) (interfaces/draft-IERC6093.sol)
 
@@ -270,7 +270,7 @@ interface IERC1155Errors {
     error ERC1155InvalidArrayLength(uint256 idsLength, uint256 valuesLength);
 }
 
-// @openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol
+// /Users/manekimeow/Desktop/HELEO/frontend/node_modules/@openzeppelin/contracts/token/ERC20/extensions/IERC20Metadata.sol
 
 // OpenZeppelin Contracts (last updated v5.4.0) (token/ERC20/extensions/IERC20Metadata.sol)
 
@@ -294,7 +294,7 @@ interface IERC20Metadata is IERC20 {
     function decimals() external view returns (uint8);
 }
 
-// @openzeppelin/contracts/access/Ownable.sol
+// ../frontend/node_modules/@openzeppelin/contracts/access/Ownable.sol
 
 // OpenZeppelin Contracts (last updated v5.0.0) (access/Ownable.sol)
 
@@ -392,7 +392,7 @@ abstract contract Ownable is Context {
     }
 }
 
-// @openzeppelin/contracts/token/ERC20/ERC20.sol
+// ../frontend/node_modules/@openzeppelin/contracts/token/ERC20/ERC20.sol
 
 // OpenZeppelin Contracts (last updated v5.5.0) (token/ERC20/ERC20.sol)
 
@@ -692,31 +692,45 @@ abstract contract ERC20 is Context, IERC20, IERC20Metadata, IERC20Errors {
     }
 }
 
-// ALGEBA.sol
+// LEO.sol
 
 interface IStakingSupply {
     function emittedSupply() external view returns (uint256);
 }
 
-/// @notice ALGEBA fixed-cap token.
-/// Genesis is pre-funded with 50 AGB (GENESIS_ALLOCATION); staking can mint only
-/// its 209,999,950 AGB allocation (STAKING_ALLOCATION). No public mint exists.
-contract ALGEBA is ERC20, Ownable {
-    uint256 public constant MAX_SUPPLY = 210_000_000 ether;
-    uint256 public constant GENESIS_ALLOCATION = 50 ether;
-    uint256 public constant STAKING_ALLOCATION = 209_999_950 ether;
+/// @notice HELEO (LEO) fixed-cap token.
+/// The 21,000,000 LEO genesis allocation is minted at deploy, split equally across
+/// the 9 contributor wallets. The other 21,000,000 LEO (EMISSION_ALLOCATION) can
+/// only be minted by the Staking contract over the halving schedule. No public mint
+/// exists.
+contract LEO is ERC20, Ownable {
+    uint256 public constant MAX_SUPPLY = 42_000_000 ether;
+    uint256 public constant GENESIS_ALLOCATION = 21_000_000 ether;
+    uint256 public constant EMISSION_ALLOCATION = 21_000_000 ether;
+    uint256 public constant CONTRIBUTOR_COUNT = 9;
 
     address public staking;
-    uint256 public stakingMinted;
+    uint256 public emissionMinted;
 
     error InvalidAddress();
+    error DuplicateContributor();
     error StakingAlreadySet();
     error OnlyStaking();
     error CapExceeded();
 
-    constructor(address initialHolder) ERC20("ALGEBA", "AGB") Ownable(msg.sender) {
-        if (initialHolder == address(0)) revert InvalidAddress();
-        _mint(initialHolder, GENESIS_ALLOCATION);
+    /// @param contributors The 9 contributor wallets. Each receives
+    /// GENESIS_ALLOCATION / 9; the 3 wei of integer-division remainder go to
+    /// contributors[0] so exactly GENESIS_ALLOCATION is minted.
+    constructor(address[9] memory contributors) ERC20("HELEO", "LEO") Ownable(msg.sender) {
+        uint256 share = GENESIS_ALLOCATION / CONTRIBUTOR_COUNT;
+        for (uint256 i = 0; i < CONTRIBUTOR_COUNT; ++i) {
+            if (contributors[i] == address(0)) revert InvalidAddress();
+            for (uint256 j = 0; j < i; ++j) {
+                if (contributors[j] == contributors[i]) revert DuplicateContributor();
+            }
+            _mint(contributors[i], share);
+        }
+        _mint(contributors[0], GENESIS_ALLOCATION - share * CONTRIBUTOR_COUNT);
     }
 
     /// @dev One-time, irreversible wiring — there is no way to change `staking`
@@ -729,23 +743,25 @@ contract ALGEBA is ERC20, Ownable {
         staking = staking_;
     }
 
-    function mintStakingReward(address to, uint256 amount) external {
+    /// @notice Mints emission for stakers and the four ecosystem buckets.
+    function mintEmission(address to, uint256 amount) external {
         if (msg.sender != staking) revert OnlyStaking();
-        if (stakingMinted + amount > STAKING_ALLOCATION) revert CapExceeded();
+        if (emissionMinted + amount > EMISSION_ALLOCATION) revert CapExceeded();
         if (totalSupply() + amount > MAX_SUPPLY) revert CapExceeded();
-        stakingMinted += amount;
+        emissionMinted += amount;
         _mint(to, amount);
     }
 
-    function remainingStakingEmission() external view returns (uint256) {
-        return STAKING_ALLOCATION - stakingMinted;
+    function remainingEmission() external view returns (uint256) {
+        return EMISSION_ALLOCATION - emissionMinted;
     }
 
     /// @notice Read-only projection: genesis allocation + everything the halving
-    /// schedule says should have emitted by the current block, whether or not
-    /// individual stakers have claimed it yet. Free to read (no gas, no state change).
+    /// schedule has made claimable by the current block (stakers' share while
+    /// someone was staking, plus all four ecosystem buckets), whether or not it has
+    /// been claimed yet. Free to read (no gas, no state change).
     /// This is NOT totalSupply() — totalSupply() only ever reflects tokens that
-    /// have actually been minted via claim/compound/unstake.
+    /// have actually been minted.
     function emittedSupply() external view returns (uint256) {
         if (staking == address(0)) return GENESIS_ALLOCATION;
         return IStakingSupply(staking).emittedSupply();

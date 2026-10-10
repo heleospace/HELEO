@@ -12,7 +12,7 @@ import {
 } from 'viem';
 import { sepolia, baseSepolia } from 'viem/chains';
 import { useWallet } from '../context/WalletContext';
-import { CONTRACTS, ALGEBA_ABI } from '../config/contracts';
+import { CONTRACTS, LEO_ABI } from '../config/contracts';
 import { LZ_EID, OFT_CONTRACTS, OFT_ABI, layerZeroScanUrl } from '../config/bridge';
 import { ensureChain } from '../utils/chainSwitch';
 
@@ -49,8 +49,8 @@ export function Bridge() {
       try {
         const [sBal, mBal] = await Promise.all([
           sepoliaPublicClient.readContract({
-            address: CONTRACTS.ALGEBA as `0x${string}`,
-            abi: ALGEBA_ABI,
+            address: CONTRACTS.LEO as `0x${string}`,
+            abi: LEO_ABI,
             functionName: 'balanceOf',
             args: [walletAddress as `0x${string}`],
           }) as Promise<bigint>,
@@ -93,8 +93,8 @@ export function Bridge() {
       // transferFrom); the Base Sepolia OFT mints/burns directly and needs none.
       if (direction === 'toBaseSepolia') {
         const currentAllowance = await srcPublicClient.readContract({
-          address: CONTRACTS.ALGEBA as `0x${string}`,
-          abi: ALGEBA_ABI,
+          address: CONTRACTS.LEO as `0x${string}`,
+          abi: LEO_ABI,
           functionName: 'allowance',
           args: [walletAddress as `0x${string}`, srcOftAddress as `0x${string}`],
         }) as bigint;
@@ -102,8 +102,8 @@ export function Bridge() {
         if (currentAllowance < amountLD) {
           const approveHash = await walletClient.writeContract({
             account: walletAddress as `0x${string}`,
-            address: CONTRACTS.ALGEBA as `0x${string}`,
-            abi: ALGEBA_ABI,
+            address: CONTRACTS.LEO as `0x${string}`,
+            abi: LEO_ABI,
             functionName: 'approve',
             args: [srcOftAddress as `0x${string}`, amountLD],
           });
@@ -155,7 +155,7 @@ export function Bridge() {
       <>
         <div className="page-header">
           <h1 className="page-title">Bridge</h1>
-          <p className="page-subtitle">Bridge AGB between Sepolia and Base Sepolia via LayerZero</p>
+          <p className="page-subtitle">Bridge LEO between Sepolia and Base Sepolia via LayerZero</p>
         </div>
         <div className="alert alert-primary">
           The bridge contracts haven't been deployed yet. An admin needs to deploy them from the Deploy page's
@@ -168,7 +168,7 @@ export function Bridge() {
 
   const statusLabel = {
     idle: 'Bridge',
-    approving: 'Approving AGB...',
+    approving: 'Approving LEO...',
     quoting: 'Getting quote...',
     sending: 'Bridging...',
     done: 'Bridge',
@@ -179,27 +179,27 @@ export function Bridge() {
     <>
       <div className="page-header">
         <h1 className="page-title">Bridge</h1>
-        <p className="page-subtitle">Bridge AGB between Sepolia and Base Sepolia via LayerZero</p>
+        <p className="page-subtitle">Bridge LEO between Sepolia and Base Sepolia via LayerZero</p>
       </div>
 
       <div className="py-2.5 px-2">
         <div className="card max-w-lg">
           <div className="card-header">
-            <h2 className="text-lg font-bold mb-0">Bridge AGB</h2>
+            <h2 className="text-lg font-bold mb-0">Bridge LEO</h2>
           </div>
           <div className="card-body space-y-4 text-sm">
             {!isConnected && (
-              <div className="alert alert-primary mb-0">Connect your wallet to bridge AGB.</div>
+              <div className="alert alert-primary mb-0">Connect your wallet to bridge LEO.</div>
             )}
 
             <div className="grid grid-cols-2 gap-3">
               <div className="p-3 rounded-md border border-platinum-dark bg-platinum">
                 <p className="text-xs text-muted uppercase font-medium tracking-wide">Sepolia</p>
-                <p className="text-sm font-bold mt-1">{formatEther(sepoliaBalance)} AGB</p>
+                <p className="text-sm font-bold mt-1">{formatEther(sepoliaBalance)} LEO</p>
               </div>
               <div className="p-3 rounded-md border border-platinum-dark bg-platinum">
                 <p className="text-xs text-muted uppercase font-medium tracking-wide">Base Sepolia</p>
-                <p className="text-sm font-bold mt-1">{formatEther(baseSepoliaBalance)} AGB</p>
+                <p className="text-sm font-bold mt-1">{formatEther(baseSepoliaBalance)} LEO</p>
               </div>
             </div>
 
@@ -224,7 +224,7 @@ export function Bridge() {
             </div>
 
             <div>
-              <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">Amount (AGB)</label>
+              <label className="text-xs text-muted uppercase font-medium tracking-wide block mb-1">Amount (LEO)</label>
               <input
                 type="number"
                 value={amount}

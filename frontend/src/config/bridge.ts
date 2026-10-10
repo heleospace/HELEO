@@ -1,4 +1,4 @@
-// LayerZero V2 bridge config: Sepolia (AGB home chain) <-> Base Sepolia Testnet.
+// LayerZero V2 bridge config: Sepolia (LEO home chain) <-> Base Sepolia Testnet.
 //
 // Endpoint IDs are LayerZero's own chain identifiers (NOT the EVM chain ID) and
 // are stable/public: https://docs.layerzero.network/v2/deployments/chains/sepolia
@@ -28,7 +28,7 @@ export function layerZeroScanUrl(txHash: string) {
 }
 
 // Minimal ABI covering what the Deploy and Bridge pages need from both
-// AGBOFTAdapter (Sepolia) and AGBOFT (Base Sepolia) — both share this surface since
+// LEOOFTAdapter (Sepolia) and LEOOFT (Base Sepolia) — both share this surface since
 // OFTAdapter/OFT both extend the same OFTCore.
 export const OFT_ABI = [
   {

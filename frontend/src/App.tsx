@@ -5,7 +5,6 @@ import { WalletProvider } from './context/WalletContext';
 import { NetworkProvider, useNetwork } from './context/NetworkContext';
 import { REOWN_PROJECT_ID, REPO_URL } from './config/constants';
 import { Home } from './pages/Home';
-import { GenesisPage } from './pages/GenesisPage';
 import { Whitepaper } from './pages/Whitepaper';
 import { Deploy } from './pages/Deploy';
 import { Bridge } from './pages/Bridge';
@@ -22,7 +21,6 @@ function Layout() {
         <div className="px-[1%] md:px-[5%]">
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/genesis" element={<GenesisPage />} />
             <Route path="/whitepaper" element={<Whitepaper />} />
             <Route path="/bridge" element={<Bridge />} />
             <Route path="/security" element={<Security />} />
@@ -35,8 +33,8 @@ function Layout() {
         <div className="py-12" style={{ paddingLeft: '5%', paddingRight: '5%' }}>
             <div className="grid grid-cols-1 md:grid-cols-4 gap-8 mb-12">
               <div>
-                <h3 className="font-bold mb-4">ALGEBA</h3>
-                <p className="text-sm text-muted">A number two strangers can both check.</p>
+                <h3 className="font-bold mb-4">HELEO</h3>
+                <p className="text-sm text-muted">Emission that funds stakers, builders, coders, compute and research.</p>
               </div>
 
               <div>
@@ -45,11 +43,6 @@ function Layout() {
                   <li>
                     <a href="/whitepaper" className="text-sm hover:underline text-navy">
                       Whitepaper
-                    </a>
-                  </li>
-                  <li>
-                    <a href="/genesis" className="text-sm hover:underline text-navy">
-                      Genesis Guide
                     </a>
                   </li>
                   <li>
@@ -82,9 +75,9 @@ function Layout() {
               <div>
                 <h3 className="font-bold mb-4 text-sm uppercase tracking-wide">Supply</h3>
                 <ul className="space-y-2">
-                  <li className="text-sm text-muted">Genesis: 50 AGB</li>
-                  <li className="text-sm text-muted">Staking: 209,999,950 AGB</li>
-                  <li className="text-sm text-muted">Max: 210,000,000 AGB</li>
+                  <li className="text-sm text-muted">Genesis: 21,000,000 LEO (9 contributors)</li>
+                  <li className="text-sm text-muted">Emission: 21,000,000 LEO (5 buckets)</li>
+                  <li className="text-sm text-muted">Max: 42,000,000 LEO</li>
                 </ul>
               </div>
             </div>
@@ -96,7 +89,7 @@ function Layout() {
             )}
 
             <div className="pt-8 text-center text-sm border-t border-platinum text-muted">
-              <p>© 2024 ALGEBA. All rights reserved.</p>
+              <p>© 2026 HELEO. All rights reserved.</p>
             </div>
         </div>
       </footer>
@@ -116,9 +109,9 @@ function AppContent() {
       <div className="min-h-screen bg-white flex items-center justify-center">
         <div className="text-center">
           <div className="w-12 h-12 rounded-full flex items-center justify-center mx-auto mb-4 bg-navy">
-            <span className="text-white font-bold">Ａ</span>
+            <span className="text-white font-bold">L</span>
           </div>
-          <p className="text-muted">Loading ALGEBA...</p>
+          <p className="text-muted">Loading HELEO...</p>
         </div>
       </div>
     );

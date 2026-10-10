@@ -15,7 +15,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const saved = localStorage.getItem('algeba_network');
+      const saved = localStorage.getItem('heleo_network');
       if (saved === 'mainnet' || saved === 'sepolia') {
         setNetworkKey(saved);
       }
@@ -26,7 +26,7 @@ export function NetworkProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      localStorage.setItem('algeba_network', networkKey);
+      localStorage.setItem('heleo_network', networkKey);
     } catch (error) {
       console.error('Error saving network to storage:', error);
     }

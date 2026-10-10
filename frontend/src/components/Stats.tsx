@@ -3,6 +3,7 @@ import type { ContractStats } from '../types/index';
 import { getContractStats } from '../utils/web3';
 import { formatCompact, formatBigInt, formatWithDecimals, formatBigIntNoFloat } from '../utils/formatting';
 import { createNetworkPublicClient } from '../utils/publicClient';
+import { BUCKET_COUNT } from '../config/constants';
 import { useNetwork } from '../context/NetworkContext';
 
 interface StatCardProps {
@@ -11,13 +12,20 @@ interface StatCardProps {
   subtext?: string;
 }
 
-// APR = current emission rate / TVL. With little staked relative to the fixed
+// APR = stakers' share of the current emission rate / TVL. Stakers receive one
+// of the five equal buckets, so only 1/BUCKET_COUNT of emission counts here. With little staked relative to the fixed
 // emission pool, this is genuinely a huge number early on — that's expected
 // DeFi-farm behavior, not a bug. Format compactly rather than hiding it.
 function formatAPY(apy: number): string {
   if (apy >= 1_000_000) return `${(apy / 1_000_000).toFixed(2)}M%`;
   if (apy >= 1_000) return `${(apy / 1_000).toFixed(2)}K%`;
   return `${apy.toFixed(2)}%`;
+}
+
+function formatStartCountdown(seconds: number): string {
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
+  return h > 0 ? `${h}h ${m}m` : `${m}m`;
 }
 
 // Days when under a year; "Xy Yd" once it crosses a year, so multi-year
@@ -87,7 +95,7 @@ export function Stats() {
         {
           const totalStaked = Number(data.totalStaked) / 1e18;
           const emissionPerSecond = Number(data.emissionPerSecond) / 1e18;
-          const annualEmission = emissionPerSecond * SECONDS_PER_YEAR;
+          const annualEmission = (emissionPerSecond * SECONDS_PER_YEAR) / BUCKET_COUNT;
           const calculatedAPY = totalStaked > 0 ? (annualEmission / totalStaked) * 100 : 0;
 
           setApy(Math.max(calculatedAPY, 0));
@@ -110,7 +118,7 @@ export function Stats() {
     };
   }, [network]);
 
-  if (!network.contracts.ALGEBA || !network.contracts.GENESIS || !network.contracts.STAKING) {
+  if (!network.contracts.LEO || !network.contracts.STAKING) {
     return (
       <div className="alert alert-primary mb-0">
         No contracts configured for {network.label}. Deploy them from the Deploy page, or switch networks above.
@@ -138,22 +146,22 @@ export function Stats() {
         <StatCard
           label="Circulating Supply"
           value={formatCompact(stats.totalSupply)}
-          subtext={`${formatBigInt(stats.totalSupply)} AGB`}
+          subtext={`${formatBigInt(stats.totalSupply)} LEO`}
         />
         <StatCard
           label="Total Staked"
           value={formatCompact(stats.totalStaked)}
-          subtext={`${formatBigInt(stats.totalStaked)} AGB`}
+          subtext={`${formatBigInt(stats.totalStaked)} LEO`}
         />
         <StatCard
           label="Emitted"
           value={formatCompact(stats.emittedSupply)}
-          subtext={`${formatBigInt(stats.emittedSupply)} AGB`}
+          subtext={`${formatBigInt(stats.emittedSupply)} LEO`}
         />
         <StatCard
           label="Remaining"
           value={formatCompact(stats.remainingEmission)}
-          subtext={`${formatBigInt(stats.remainingEmission)} AGB`}
+          subtext={`${formatBigInt(stats.remainingEmission)} LEO`}
         />
         <StatCard
           label="Current APY"
@@ -164,30 +172,42 @@ export function Stats() {
 
       {/* Secondary Stats - 3 cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <StatCard
-          label="Genesis Participants"
-          value={stats.genesisParticipants.toString()}
-          subtext="Total participants"
-        />
+        {(() => {
+          const now = chainTime ?? BigInt(Math.floor(Date.now() / 1000));
+          const startDate = new Date(Number(stats.startTime) * 1000).toLocaleString(undefined, {
+            year: 'numeric',
+            month: 'short',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit',
+          });
+          if (now < stats.startTime) {
+            return (
+              <StatCard
+                label="Emission Starts In"
+                value={formatStartCountdown(Number(stats.startTime - now))}
+                subtext={`${startDate} · stake now to be ready`}
+              />
+            );
+          }
+          return (
+            <StatCard
+              label="Emission Started"
+              value={startDate}
+              subtext="Split 5 ways: stakers, builder, coder, compute, research"
+            />
+          );
+        })()}
         <StatCard
           label="Current Epoch"
           value={`Epoch ${(stats.currentEpoch + 1n).toString()}`}
           subtext={
             stats.emissionPerSecond === 0n
               ? 'Emission not started'
-              : `${formatBigIntNoFloat(stats.emissionPerSecond * 86400n)} AGB/day · ${formatWithDecimals(stats.emissionPerSecond)} AGB/sec`
+              : `${formatBigIntNoFloat(stats.emissionPerSecond * 86400n)} LEO/day total · ${formatWithDecimals(stats.emissionPerSecond / BigInt(BUCKET_COUNT))} LEO/sec per bucket`
           }
         />
         {(() => {
-          if (stats.nextHalvingTime === 0n) {
-            return (
-              <StatCard
-                label="Next Halving"
-                value="Not Started"
-                subtext="Staking hasn't begun yet"
-              />
-            );
-          }
           const now = chainTime ?? BigInt(Math.floor(Date.now() / 1000));
           const secondsLeft = stats.nextHalvingTime > now ? Number(stats.nextHalvingTime - now) : 0;
           const halvingDate = new Date(Number(stats.nextHalvingTime) * 1000).toLocaleDateString(undefined, {

@@ -4,8 +4,7 @@ import type { Chain } from 'viem';
 export type NetworkKey = 'mainnet' | 'sepolia';
 
 export interface ContractAddresses {
-  ALGEBA: string;
-  GENESIS: string;
+  LEO: string;
   STAKING: string;
 }
 
@@ -31,8 +30,7 @@ export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
     explorerUrl: 'https://etherscan.io',
     rpcUrl: import.meta.env.VITE_RPC_URL_MAINNET || undefined,
     contracts: {
-      ALGEBA: import.meta.env.VITE_ALGEBA_ADDRESS_MAINNET || '',
-      GENESIS: import.meta.env.VITE_GENESIS_ADDRESS_MAINNET || '',
+      LEO: import.meta.env.VITE_LEO_ADDRESS_MAINNET || '',
       STAKING: import.meta.env.VITE_STAKING_ADDRESS_MAINNET || '',
     },
   },
@@ -43,8 +41,7 @@ export const NETWORKS: Record<NetworkKey, NetworkConfig> = {
     explorerUrl: 'https://sepolia.etherscan.io',
     rpcUrl: import.meta.env.VITE_RPC_URL_SEPOLIA || undefined,
     contracts: {
-      ALGEBA: import.meta.env.VITE_ALGEBA_ADDRESS_SEPOLIA || '',
-      GENESIS: import.meta.env.VITE_GENESIS_ADDRESS_SEPOLIA || '',
+      LEO: import.meta.env.VITE_LEO_ADDRESS_SEPOLIA || '',
       STAKING: import.meta.env.VITE_STAKING_ADDRESS_SEPOLIA || '',
     },
   },
