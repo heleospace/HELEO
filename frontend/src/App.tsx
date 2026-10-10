@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { BrowserRouter, Routes, Route } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import { Header } from './components/Header';
 import { WalletProvider } from './context/WalletContext';
 import { NetworkProvider, useNetwork } from './context/NetworkContext';
@@ -41,19 +41,19 @@ function Layout() {
                 <h3 className="font-bold mb-4 text-sm uppercase tracking-wide">Documentation</h3>
                 <ul className="space-y-2">
                   <li>
-                    <a href="/whitepaper" className="text-sm hover:underline text-navy">
+                    <Link to="/whitepaper" className="text-sm hover:underline text-navy">
                       Whitepaper
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="/" className="text-sm hover:underline text-navy">
+                    <Link to="/" className="text-sm hover:underline text-navy">
                       Staking Guide
-                    </a>
+                    </Link>
                   </li>
                   <li>
-                    <a href="/security" className="text-sm hover:underline text-navy">
+                    <Link to="/security" className="text-sm hover:underline text-navy">
                       Security &amp; Audits
-                    </a>
+                    </Link>
                   </li>
                   <li>
                     <a href={REPO_URL} target="_blank" rel="noopener noreferrer" className="text-sm hover:underline text-navy">
@@ -118,7 +118,9 @@ function AppContent() {
   }
 
   return (
-    <BrowserRouter>
+    // BASE_URL is Vite's `base` ("/token/" on heleo.space/token); the router
+    // needs it as its basename so routes resolve under that path.
+    <BrowserRouter basename={import.meta.env.BASE_URL}>
       <Layout />
     </BrowserRouter>
   );
